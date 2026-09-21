@@ -1,8 +1,34 @@
 # logicsim
 
 
-
 ## Getting started
+
+本程序可通过直接 git clone 项目后，点击本目录下的 index.html 打开，
+
+也可以直接访问本项目的 [gitlab pages](https://kuangdash.gitlab.io/logicsim)，
+
+之后在“解析文本”按钮上面的文本框内输入“逆波兰逻辑表达式”。
+
+“逆波兰逻辑表达式”支持五种逻辑操作符：
+{
+“.”：“a b .”代表“a”和“b”的逻辑与，
+“,”：“a b .”代表“a”和“b”的逻辑或，
+“<”：“a <”代表“a”的逻辑非，
+“>”：“a b >”代表“a”和“b”的逻辑推出，
+
+“=”：“a b =”代表“a”和“b”的逻辑等价/同或
+}。
+
+逆波兰逻辑表达式组合的举例说明：
+{
+“a b . fe >”即代表逻辑表达“a 与 b   推出了   fe”，
+
+“a b . fe ge > =”即代表逻辑表达“a 与 b  等价于  fe 推出了 ge”
+}。
+
+之后点击“解析文本”按钮，将“逆波兰逻辑表达式”转换为适合图形表示的 JSON 格式，
+
+之后再点击“解析文本”按钮旁的“文本转图”，得到最终的正规图形表示。
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 
@@ -68,7 +94,6 @@ Depending on what you are making, it can be a good idea to include screenshots o
 Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
 ## Support
 Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.

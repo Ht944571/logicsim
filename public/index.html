@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta content="text/html;charset=utf-8" http-equiv="content-type" />
+    <meta content="IE=edge" http-equiv="X-UA-Compatible" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" type="text/css" href="lib/joint.css" />
+    <link href="lib/select2.min.css" rel="stylesheet" />
+    <link href="lib/w3.css" rel="stylesheet" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+
+
+    <!-- dependencies -->
+    <script src="lib/jquery.min.js"></script>
+    <script src="lib/lodash.min.js"></script>
+    <script src="lib/backbone.js"></script>
+    <script src="lib/graphlib.min.js"></script>
+    <script src="lib/dagre.min.js"></script>
+    <script src="lib/joint.js"></script>
+    <script src="lib/select2.min.js"></script>
+    <script src="LogicParser.js"></script>
+</head>
+
+<body>
+    <!-- content -->
+    <div class="joint-app">
+        <div class="app-header">
+            <div class="mini-map">
+                <div id="mini-paper"></div>
+                <div id="mini-view">
+                    <div id="mini-resize"></div>
+                </div>
+            </div>
+            <div class="title-container">
+                <div style="width:33%;float:left;overflow:auto;">
+                    <div class="w3-row" style="margin:1px">
+                        <div class="w3-third w3-btn w3-light-green  w3-hover-green"
+                            style="position: relative;overflow: hidden;cursor:pointer">
+                            <img src="assets/icons/save2.svg" width="15" height="15" class="w3-margin-right" />
+                            <span>载入文本</span>
+                            <input type="file" style="position: absolute;
+                            top: 0;
+                            right: 0;
+                            margin: 0;
+                            padding: 0;
+                            font-size: 20px;
+                            cursor: pointer;
+                            opacity: 0;
+                            filter: alpha(opacity=0)" id="fileToLoad" />
+                        </div>
+                        <button class="w3-third w3-btn w3-light-blue  w3-hover-blue" onclick="app.saveTextAsFile()"><img
+                                src="assets/icons/upload.svg" width="15" height="15"
+                                class="w3-margin-right" />保存文本</button>
+                        <input class="w3-third w3-input w3-center" id="inputFileNameToSaveAs" value="默认保存名称"></input>
+                    </div>
+
+
+                    <textarea style="width:100%;height:60px" id="ReversePol"></textarea>
+
+                    <button class="w3-block w3-btn w3-yellow  w3-hover-deep-orange w3-round-large"
+                        onclick="app.parseLogic()">解析文本</button>
+
+                </div>
+                <div style="width:65%;float:left">
+                    <table style="width:100%">
+                        <tr>
+                            <td colspan="2">
+                                <textarea id="myModel" style="width:100%;height:100px">
+                            {
+                                nodeArray: [],
+                                linkArray: []
+                            }
+                        </textarea>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <button id="LoadButton" class="w3-block w3-btn w3-light-green w3-hover-green"
+                                    onclick="app.load()"><img src="assets/icons/save2.svg" width="15" height="15"
+                                        class="w3-margin-right" />文本转图</button>
+                            </td>
+                            <td>
+                                <button id="SaveButton" class="w3-block w3-btn w3-light-blue  w3-hover-blue"
+                                    onclick="app.save()"><img src="assets/icons/upload.svg" width="15" height="15"
+                                        class="w3-margin-right" />图转文本</button>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="app-body">
+            <div class="left-container">
+
+            </div>
+            <div class="main-container">
+                <div id="paper-container">
+                    <div id="paper" style="cursor:grab">
+                    </div>
+                </div>
+            </div>
+            <div id="app-resize">
+                <div style="position:absolute;left:-35px;background-image:url(assets/box-arrow-in-right.svg);background-size:100%;width:30px;height:30px;"
+                    onclick="
+                app.ResizeBlock()
+                ">
+
+                </div>
+            </div>
+            <div class="right-container">
+                <div class="w3-row">
+                    <div class="w3-third">
+                        元素名称：
+                    </div>
+                    <input class="w3-twothird" type="text" id="ERName" />
+                </div>
+                <div class="w3-row">
+                    <div class="w3-third">
+                        元素备注：
+                    </div>
+                    <textarea class="w3-twothird" id="ERMemo">
+                    </textarea>
+                </div>
+                <button id="ERSetName" class="w3-block w3-btn w3-yellow  w3-hover-deep-orange w3-round-large"
+                    onclick="app.ChangeName()">保存修改</button>
+            </div>
+            <div class="bottom-container">
+                <p id="status">Diagram Model loaded from Json Format.</p>
+            </div>
+        </div>
+    </div>
+    <script src="ViewGen.js">
+    </script>
+</body>
+
+</html>
