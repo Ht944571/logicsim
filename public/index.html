@@ -125,6 +125,24 @@
                 </div>
                 <button id="ERSetName" class="w3-block w3-btn w3-yellow  w3-hover-deep-orange w3-round-large"
                     onclick="app.ChangeName()">保存修改</button>
+                <div>
+                    在“解析文本”按钮上面的文本框内输入“逆波兰逻辑表达式”。<br/>
+                    “逆波兰逻辑表达式”支持五种逻辑操作符：<br/>
+                    {<br/>
+                    “.”：“a b .”代表“a”和“b”的逻辑与，<br/>
+                    “<”：“a <”代表“a”的逻辑非，<br/>
+                    “,”：“a b ,”代表“a”和“b”的逻辑或，<br/>
+                    “=”：“a b =”代表“a”和“b”的逻辑等价/同或<br/>
+                    “>”：“a b >”代表“a”和“b”的逻辑推出，<br/>
+                      }。<br/>
+                    逆波兰逻辑表达式组合的举例说明：<br/>
+                    {<br/>
+                    “a b . fe >”即代表逻辑表达“a 与 b   推出了   fe”，<br/>
+                    “a b . fe ge > =”即代表逻辑表达“a 与 b  等价于  fe 推出了 ge”<br/>
+                    }。<br/>
+                    之后点击“解析文本”按钮，将“逆波兰逻辑表达式”转换为适合图形表示的 JSON 格式，<br/>
+                    之后再点击“解析文本”按钮旁的“文本转图”，得到最终的正规图形表示。
+                </div>
             </div>
             <div class="bottom-container">
                 <p id="status">Diagram Model loaded from Json Format.</p>
