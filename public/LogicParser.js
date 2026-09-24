@@ -108,47 +108,90 @@ function equalM(a, b) {
 
 /* ---------------------------------------------------------------------------
  * ② 量词辅助：变量代入与出现性判断
+ *
+ * 注意：这三个函数对【两种节点形态】都是多态的，靠节点形状自动判别。
+ *   ite 节点  ： { S, "0", "1" }        —— 选择器 / MUX 树（默认）
+ *   门节点    ： { op, a, b? }          —— 运算符树（逻辑门视图用）
+ * 这样量词的代入与消去逻辑只需实现一次，两种表示法共用。
  * ------------------------------------------------------------------------ */
 
-/* 把树中所有名为 v 的变量叶子替换为常量 val（"0" 或 "1"） */
-function substVar(tree, v, val) {
-    if ("string" === typeof (tree)) {
-        return (tree === v) ? val : tree;
+/* 把节点中所有名为 v 的变量叶子替换为常量 val（"0" 或 "1"） */
+function substVar(node, v, val) {
+    if ("string" === typeof (node)) {
+        return (node === v) ? val : node;
     }
-    return {
-        "S": substVar(tree.S, v, val),
-        "0": substVar(tree["0"], v, val),
-        "1": substVar(tree["1"], v, val)
-    };
+    if (undefined !== node.S) {
+        return {
+            "S": substVar(node.S, v, val),
+            "0": substVar(node["0"], v, val),
+            "1": substVar(node["1"], v, val)
+        };
+    }
+    var gate = { op: node.op, a: substVar(node.a, v, val) };
+    if (undefined !== node.b) { gate.b = substVar(node.b, v, val); }
+    return gate;
 }
 
-/* 变量 v 是否在树中出现（含 "S" 位置） */
-function occursIn(tree, v) {
-    if ("string" === typeof (tree)) {
-        return tree === v;
+/* 变量 v 是否在节点中出现 */
+function occursIn(node, v) {
+    if ("string" === typeof (node)) {
+        return node === v;
     }
-    return occursIn(tree.S, v) || occursIn(tree["0"], v) || occursIn(tree["1"], v);
+    if (undefined !== node.S) {
+        return occursIn(node.S, v) || occursIn(node["0"], v) || occursIn(node["1"], v);
+    }
+    return occursIn(node.a, v) || (undefined !== node.b && occursIn(node.b, v));
 }
 
-/* 收集树中出现的全部变量名（排除常量 0/1） */
-function collectVars(tree, out) {
+/* 收集节点中出现的全部变量名（排除常量 0/1） */
+function collectVars(node, out) {
     out = out || [];
-    if ("string" === typeof (tree)) {
-        if ("0" !== tree && "1" !== tree && -1 === out.indexOf(tree)) {
-            out.push(tree);
+    if ("string" === typeof (node)) {
+        if ("0" !== node && "1" !== node && -1 === out.indexOf(node)) {
+            out.push(node);
         }
         return out;
     }
-    collectVars(tree.S, out);
-    collectVars(tree["0"], out);
-    collectVars(tree["1"], out);
+    if (undefined !== node.S) {
+        collectVars(node.S, out);
+        collectVars(node["0"], out);
+        collectVars(node["1"], out);
+        return out;
+    }
+    collectVars(node.a, out);
+    if (undefined !== node.b) { collectVars(node.b, out); }
     return out;
 }
+
+/* ---------------------------------------------------------------------------
+ * ②b 两套节点构造子
+ *   ITE_OPS  —— 默认，构造 { S, "0", "1" }
+ *   GATE_OPS —— 构造 { op, a, b? }，供「逻辑门视图」使用
+ * 语义完全一致，只是记录方式不同。
+ * ------------------------------------------------------------------------ */
+var GATE_OPS = {
+    and: function (a, b) { return { op: "and", a: a, b: b }; },
+    or: function (a, b) { return { op: "or", a: a, b: b }; },
+    not: function (a) { return { op: "not", a: a }; },
+    imply: function (a, b) { return { op: "imply", a: a, b: b }; },
+    iff: function (a, b) { return { op: "iff", a: a, b: b }; }
+};
+
+var ITE_OPS = {
+    and: andM,
+    or: orM,
+    not: notM,
+    imply: infM,
+    iff: equalM
+};
 
 /* ---------------------------------------------------------------------------
  * ③ LogicParser —— 语法分析
  *
  * 输入：逆波兰逻辑表达式字符串
+ * 输入：npn（后缀表达式字符串）、opts（可选）
+ *   opts.nodeKind === "gate" 时产出【运算符树】{op,a,b}，供「逻辑门视图」使用；
+ *   缺省产出【ite / MUX 树】{S,"0","1"}，即原有行为，逐字节不变。
  * 输出：{ ok:true, tree, quant:[{var,type}] }
  *   或  { ok:false, code, message }
  *
@@ -161,8 +204,11 @@ function collectVars(tree, out) {
  * 分词：按操作符与空白切分。变量名可由字母、数字、汉字组成；
  *       变量名之间用空白分隔；操作符可与前一个 token 紧邻（"a b." 等价于 "a b ."）。
  * ------------------------------------------------------------------------ */
-function LogicParser(npn) {
+function LogicParser(npn, opts) {
     if ("string" !== typeof (npn)) { return logicErr("E_EMPTY"); }
+
+    /* 选定节点构造子：默认 ite（MUX）树，保证既有行为零变化 */
+    var M = (opts && "gate" === opts.nodeKind) ? GATE_OPS : ITE_OPS;
 
     var tokens = npn.split(/(\.|,|<|>|=|\?|!|\s)/);
     var stack = [];          /* 求值栈 */
@@ -202,10 +248,10 @@ function LogicParser(npn) {
             commitPending();
             var ops2 = takeOperands(2);
             if (null === ops2) { return logicErr("E_ARITY_LOW"); }
-            if ("." === n) { stack.push(andM(ops2[0], ops2[1])); }
-            else if ("," === n) { stack.push(orM(ops2[0], ops2[1])); }
-            else if (">" === n) { stack.push(infM(ops2[0], ops2[1])); }
-            else { stack.push(equalM(ops2[0], ops2[1])); }
+            if ("." === n) { stack.push(M.and(ops2[0], ops2[1])); }
+            else if ("," === n) { stack.push(M.or(ops2[0], ops2[1])); }
+            else if (">" === n) { stack.push(M.imply(ops2[0], ops2[1])); }
+            else { stack.push(M.iff(ops2[0], ops2[1])); }
             nstate--;
             continue;
         }
@@ -215,7 +261,7 @@ function LogicParser(npn) {
             commitPending();
             var ops1 = takeOperands(1);
             if (null === ops1) { return logicErr("E_ARITY_LOW"); }
-            stack.push(notM(ops1[0]));
+            stack.push(M.not(ops1[0]));
             continue;
         }
 
@@ -234,6 +280,19 @@ function LogicParser(npn) {
 
             var type = ("?" === n) ? "exists" : "forall";
 
+            /* 逻辑门视图：保留量词节点而不是就地展开。
+               展开在语义上没错，但会得到 (0∨b) ∧ (1∨b) 这种读不懂的形状；
+               保留成「∀x / ∃x 量词盒」更贴合原表达式。
+               该开关只在 opts.keepQuantifier 时生效，默认行为完全不变。 */
+            if (opts && opts.keepQuantifier && "gate" === opts.nodeKind) {
+                stack.push({ op: type, v: bound, a: body });
+                if (occursIn(body, bound)) {
+                    quantLog.push({ "var": bound, "type": type });
+                }
+                nstate--;
+                continue;
+            }
+
             /* ∃x φ = φ[x:=0] ∨ φ[x:=1]  ；  ∀x φ = φ[x:=0] ∧ φ[x:=1]
                这里【不做】"x 未出现就直接返回 φ" 的恒等捷径：
                捷径会让已经量化的公式在栈上还原成裸字符串，从而在语法上
@@ -242,7 +301,7 @@ function LogicParser(npn) {
                化简结果与 φ 完全一致），所以去掉捷径不改变任何输出。 */
             var v0 = substVar(body, bound, "0");
             var v1 = substVar(body, bound, "1");
-            stack.push(("exists" === type) ? orM(v0, v1) : andM(v0, v1));
+            stack.push(("exists" === type) ? M.or(v0, v1) : M.and(v0, v1));
 
             /* 只记录真正绑定到变量的量词：绑定变量未出现时语义上是恒等变换，
                不该出现在界面的量词前缀里 */
@@ -517,7 +576,7 @@ function ViewGen(pn) {
 
     var temp = ViewGen0(pn, countKey, "OUT");
     if (!temp) {
-        temp = { nodeArray: [], linkArray: [], error: "NO_COMMON_ROOT" };
+        temp = { nodeArray: [], linkArray: [] , error: "NO_COMMON_ROOT" };
     }
     result.nodeArray = result.nodeArray.concat(temp.nodeArray);
     result.linkArray = result.linkArray.concat(temp.linkArray);
@@ -525,4 +584,54 @@ function ViewGen(pn) {
         result.error = temp.error;
     }
     return result;
+}
+
+/* ---------------------------------------------------------------------------
+ * ⑥ TruthTable —— 由路径集生成真值表
+ *
+ * 变量取 cube 集的 order，也就是【化简后函数的自由变量】。
+ * 对含量词的表达式这是正确口径：被量词消去的变量不再是函数的自变量，
+ * 列在表里没有意义。
+ *
+ * 返回：
+ *   { vars:[...], rows:[ {bits:[0|1,...], out:0|1, index:n}, ... ], truncated:bool }
+ *   vars 为空（表达式已化简为常量）时，rows 只有一行（空赋值）。
+ * ------------------------------------------------------------------------ */
+var TRUTH_MAX_VARS = 12;    /* 4096 行；再多人眼也读不了，且表格会拖慢渲染 */
+
+function TruthTable(vars, cubes) {
+    var n = vars.length;
+    if (n > TRUTH_MAX_VARS) {
+        return { vars: vars, rows: [], truncated: true };
+    }
+
+    /* 只保留输出为 1 的 cube —— 真值表的每一行只需判断"是否被某条真路径覆盖" */
+    var trueCubes = [];
+    for (var c = 0; c < cubes.length; c++) {
+        if (">" === cubes[c]["."]) { trueCubes.push(cubes[c]); }
+    }
+
+    var rows = [];
+    var total = (n === 0) ? 1 : (1 << n);
+    for (var m = 0; m < total; m++) {
+        var bits = [];
+        /* 让 vars[0] 当最高位：这样按 m 递增列出来就是习惯上的二进制计数顺序
+           （000, 001, 010, ...），第一列变化最慢，人眼好读 */
+        for (var i = 0; i < n; i++) { bits.push((m >> (n - 1 - i)) & 1); }
+
+        var out = 0;
+        for (var k = 0; k < trueCubes.length; k++) {
+            var cube = trueCubes[k];
+            var match = true;
+            for (var j = 0; j < n; j++) {
+                var want = cube[vars[j]];
+                if (undefined === want) { continue; }   /* 该 cube 不约束这个变量 */
+                if ((">" === want ? 1 : 0) !== bits[j]) { match = false; break; }
+            }
+            if (match) { out = 1; break; }
+        }
+        rows.push({ bits: bits, out: out, index: m });
+    }
+
+    return { vars: vars, rows: rows, truncated: false };
 }

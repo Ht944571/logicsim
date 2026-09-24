@@ -1,5 +1,63 @@
 var app = app || {};
 
+/* ===========================================================================
+ * 连线工厂与端口校验
+ * 这两个必须在 Paper 初始化之前定义好 —— 创建 Paper 时就要引用它们。
+ * ========================================================================*/
+
+/* 连线外观：加箭头表示数据流向（原版是无方向的纯线） */
+app.LINK_ATTRS = {
+    line: {
+        stroke: '#7b8794',
+        strokeWidth: 1.6,
+        targetMarker: {
+            type: 'path',
+            d: 'M 9 -4 0 0 9 4 z',
+            fill: '#7b8794',
+            stroke: 'none'
+        }
+    }
+};
+
+app.makeLink = function (src, dst) {
+    var cfg = {
+        smooth: true,
+        connector: { name: 'jumpover', args: { size: 5 } },
+        router: {
+            name: 'metro',
+            args: { step: 10, startDirections: ["right"], endDirections: ["left"] }
+        },
+        attrs: app.LINK_ATTRS
+    };
+    if (src) { cfg.source = src; }
+    if (dst) { cfg.target = dst; }
+    return new joint.shapes.standard.Link(cfg);
+};
+
+/* 取端口所属的分组（"in" / "out"）。
+   不依赖 JointJS 的 getPort（v3.3.1 未必有），直接查模型上的 ports.items。 */
+app.portGroup = function (model, portId) {
+    if (!portId || !model || !model.get) { return null; }
+    var ports = model.get('ports');
+    if (!ports || !ports.items) { return null; }
+    for (var i = 0; i < ports.items.length; i++) {
+        if (ports.items[i].id === portId) { return ports.items[i].group; }
+    }
+    return null;
+};
+
+app.isOutputPort = function (model, portId) { return "out" === app.portGroup(model, portId); };
+app.isInputPort = function (model, portId) { return "in" === app.portGroup(model, portId); };
+
+/* 只允许「输出端 → 输入端」，且不允许自环。
+   端口分组在两种视图里含义一致：Import/常量/门的输出是 out，门与 SEL 的输入是 in。 */
+app.validateConnection = function (cellViewS, magnetS, cellViewT, magnetT) {
+    if (!cellViewS || !cellViewT || cellViewS === cellViewT) { return false; }
+    var portS = cellViewS.findAttribute ? cellViewS.findAttribute('port', magnetS) : null;
+    var portT = cellViewT.findAttribute ? cellViewT.findAttribute('port', magnetT) : null;
+    return app.isOutputPort(cellViewS.model, portS) && app.isInputPort(cellViewT.model, portT);
+};
+
 var origin = {
     nodeArray: [],
     linkArray: []
@@ -19,10 +77,26 @@ var paper = new joint.dia.Paper({
     width: 800,
     height: 600,
     gridSize: 10,
-    drawGrid: true,
+    /* 双层网格：细格 10px + 粗格 50px，方便对齐摆放。
+       原版是纯色背景，看不出网格，用户反馈"画布是空白的"。 */
+    drawGrid: {
+        name: 'doubleMesh',
+        args: [
+            { color: '#eef2f7', thickness: 1 },
+            { color: '#dbe2ec', thickness: 1, scaleFactor: 5 }
+        ]
+    },
     background: {
-        color: '#fbfcfd'
-    }
+        color: '#ffffff'
+    },
+    /* 手动连线：允许从端口拖出连线；拖到空白处丢弃（不留悬空线头） */
+    linkPinning: false,
+    snapLinks: { radius: 24 },
+    markAvailable: true,
+    validateConnection: app.validateConnection,
+    defaultLink: function () { return app.makeLink(); },
+    /* 元素自由拖动；连线端点可拖动改接 */
+    interactive: { elementMove: true, linkMove: true, arrowheadMove: true }
 
 });
 
@@ -704,6 +778,10 @@ app.makeNode = function (theKey, theLabel, theName, theColor, theImgPath, thePor
     });
 };
 app.nodeCreate = function (theNode) {
+    /* 逻辑门类型（AND/OR/NOT/IMPLY/IFF/FORALL/EXISTS/VAR/0/1/Export）走门渲染 */
+    var gateNode = app.makeGateNode(theNode);
+    if (gateNode) { return gateNode; }
+
     var result = {};
     if ("0" == theNode.type) {
         result = app.makeNode(
@@ -771,21 +849,195 @@ app.nodeCreate = function (theNode) {
     return result;
 };
 app.linkCreate = function (theNode) {
-    return new joint.shapes.standard.Link(
-        {
-            source: { id: theNode.from, magnet: "portBody", port: theNode.frompid },
-            target: { id: theNode.to, magnet: "portBody", port: theNode.topid },
-            smooth: true,
-            connector: { name: "jumpover", args: { size: 5 } },
-            router: {
-                name: 'metro',
-                args: {
-                    step: 10,
-                    startDirections: ["right"],
-                    endDirections: ["left"]
-                }
+    return app.makeLink(
+        { id: theNode.from, magnet: "portBody", port: theNode.frompid },
+        { id: theNode.to, magnet: "portBody", port: theNode.topid }
+    );
+};
+
+/* ===========================================================================
+ * 逻辑门节点渲染
+ * ---------------------------------------------------------------------------
+ * 几何与符号路径来自 GateView.js 的 GATE_GEOM（纯数据），这里只负责把它
+ * 变成 JointJS 模型。与/或/非用 standard.Path 画标准逻辑符号；
+ * 推出、等价、量词不是基本门，按电路图惯例用带符号的方框。
+ * ========================================================================*/
+
+/* 各门符号文字的画法位置（局部坐标） */
+var GATE_SYMBOL_POS = {
+    AND: { x: 36, y: 34 },
+    OR: { x: 36, y: 34 },
+    NOT: { x: 22, y: 34 },
+    IMPLY: { x: 48, y: 27 },
+    IFF: { x: 48, y: 27 },
+    FORALL: { x: 44, y: 24 },
+    EXISTS: { x: 44, y: 24 }
+};
+
+/* 各门的外观配色 */
+var GATE_STYLE = {
+    AND: { fill: "#dbe7fb", stroke: "#2f6fed" },
+    OR: { fill: "#e6f2fb", stroke: "#2f6fed" },
+    NOT: { fill: "#fdf1e0", stroke: "#d98613" },
+    IMPLY: { fill: "#eef3fe", stroke: "#4a6fd0" },
+    IFF: { fill: "#eef3fe", stroke: "#4a6fd0" },
+    FORALL: { fill: "#fdf3e2", stroke: "#ba7517" },
+    EXISTS: { fill: "#e7f7f1", stroke: "#0f6e56" },
+    VAR: { fill: "#eaf9f2", stroke: "#0f6e56" },
+    CONST1: { fill: "#31d0c6", stroke: "#1d9e75" },
+    CONST0: { fill: "#fe854f", stroke: "#d85a30" },
+    OUT: { fill: "#f6ecfd", stroke: "#a259d9" }
+};
+
+/* 门节点的端口分组：用绝对坐标摆放，保证落在符号的引线上 */
+function gatePortGroups() {
+    return {
+        in: {
+            position: { name: "absolute", args: { x: 0, y: 0 } },
+            attrs: {
+                portBody: { magnet: true, fill: "#2f6fed", stroke: "#1d4ed8", strokeWidth: 1 },
+                portLabel: { fill: "#5f5e5a", fontSize: 10, fontWeight: "Normal" }
+            },
+            markup: [
+                { tagName: "rect", selector: "portBody", attributes: { height: 8, width: 8, x: -4, y: -4, rx: 2 } },
+                { tagName: "text", selector: "portLabel", attributes: { x: -8, y: 3, "text-anchor": "end" } }
+            ]
+        },
+        out: {
+            position: { name: "absolute", args: { x: 0, y: 0 } },
+            attrs: {
+                portBody: { magnet: true, fill: "#0f6e56", stroke: "#0b5544", strokeWidth: 1 },
+                portLabel: { fill: "#5f5e5a", fontSize: 10, fontWeight: "Normal" }
+            },
+            markup: [
+                { tagName: "rect", selector: "portBody", attributes: { height: 8, width: 8, x: -4, y: -4, rx: 2 } },
+                { tagName: "text", selector: "portLabel", attributes: { x: 8, y: 3, "text-anchor": "start" } }
+            ]
+        }
+    };
+}
+
+/* 返回 JointJS 模型；theNode.type 不是门类型时返回 null，由调用方走原有分支 */
+app.makeGateNode = function (theNode) {
+    var type = theNode.type;
+    /* 门视图用 CONST0 / CONST1 / GateOut，与选择器视图的 "0"/"1"/"Export" 区分开 */
+    var isConst = ("CONST0" === type || "CONST1" === type);
+    var isOut = ("GateOut" === type);
+    var geomKey = isConst ? "CONST" : (isOut ? "OUT" : type);
+    var geom = GATE_GEOM[geomKey];
+    if (!geom) { return null; }
+
+    var w = geom.w, h = geom.h;
+    var styleKey = isConst ? type : (isOut ? "OUT" : type);
+    var style = GATE_STYLE[styleKey] || GATE_STYLE.VAR;
+
+    /* 符号文字与下方名称。
+       名称的位置分两种：门/量词放在图形下方；变量输入放在胶囊内部居中。 */
+    var symbolText = "";
+    var nameText = theNode.name || "";
+    var symbolSize = 20;
+    var nameBelow = true;
+
+    if (isConst) {
+        symbolText = ("CONST1" === type) ? "1" : "0";
+        symbolSize = 16;
+        nameText = "";                      /* 常量只看里面的 1/0，不再另加名称 */
+    } else if (isOut) {
+        symbolText = "输出";
+        symbolSize = 13;
+        nameText = "";
+    } else if ("VAR" === type) {
+        symbolText = "";                    /* 变量名直接用 name 居中显示 */
+        nameText = theNode.name || "变量";
+        nameBelow = false;
+    } else {
+        symbolText = geom.symbol;
+    }
+
+    var symPos = GATE_SYMBOL_POS[type] || { x: w / 2, y: h / 2 };
+    if ("VAR" === type || isConst || isOut) { symPos = { x: w / 2, y: h / 2 }; }
+
+    /* ---- 造型 ---- */
+    var attrs = {};
+    var markup = [];
+    if (geom.path) {
+        markup.push({ tagName: "path", selector: "body" });
+        attrs.body = { d: geom.path, fill: style.fill, stroke: style.stroke, strokeWidth: 1.6, strokeLinejoin: "round" };
+    } else {
+        markup.push({ tagName: "rect", selector: "body" });
+        attrs.body = {
+            width: w, height: h,
+            rx: geom.capsule ? h / 2 : 6,
+            ry: geom.capsule ? h / 2 : 6,
+            fill: style.fill, stroke: style.stroke, strokeWidth: 1.4
+        };
+    }
+    if (geom.circle) {
+        markup.push({ tagName: "circle", selector: "bubble" });
+        attrs.bubble = {
+            cx: geom.circle.cx, cy: geom.circle.cy, r: geom.circle.r,
+            fill: "#ffffff", stroke: style.stroke, strokeWidth: 1.6
+        };
+    }
+
+    markup.push({
+        tagName: "text", selector: "symbol",
+        attributes: { "text-anchor": "middle", "dominant-baseline": "central" }
+    });
+    attrs.symbol = {
+        text: symbolText,
+        x: symPos.x, y: symPos.y,
+        fontSize: symbolSize,
+        fill: "#1f2430",
+        fontFamily: "'TsangerYuYangT03', 'Segoe UI', sans-serif",
+        fontWeight: "500"
+    };
+
+    if (nameText) {
+        markup.push({
+            tagName: "text", selector: "name",
+            attributes: {
+                "text-anchor": "middle",
+                "dominant-baseline": nameBelow ? "hanging" : "central"
             }
-        })
+        });
+        attrs.name = {
+            text: nameText,
+            x: w / 2,
+            y: nameBelow ? (h + 3) : (h / 2),
+            fontSize: nameBelow ? 11 : 14,
+            fill: nameBelow ? "#5f5e5a" : "#1f2430",
+            fontFamily: "'TsangerYuYangT03', 'Segoe UI', sans-serif",
+            fontWeight: nameBelow ? "400" : "500"
+        };
+    } else {
+        /* 没有可见名称时也要保留 attrs.name —— ELDump 靠它还原 JSON 的 name 字段 */
+        attrs.name = { text: "" };
+    }
+
+    var ports = [];
+    geom.inputs.forEach(function (p) {
+        ports.push({ group: "in", id: p.id, args: { x: p.x, y: p.y }, attrs: { portLabel: { text: p.id } } });
+    });
+    if (geom.out) {
+        ports.push({ group: "out", id: "OUT", args: { x: geom.out.x, y: geom.out.y } });
+    }
+
+    /* 必须用带 type 字符串的具名形状：直接 new joint.dia.Element 基类没有 type，
+       graph.resetCells 会报 "cell type must be a string"。
+       造型（path / rect）与 markup 下面会被完全覆盖，这里只借一个合法的 type。 */
+    var Shape = geom.path ? joint.shapes.standard.Path : joint.shapes.standard.Rectangle;
+
+    return new Shape({
+        id: theNode.key,
+        position: { x: 0, y: 0 },
+        size: { width: w, height: h },
+        /* nodeType 承载节点类型，供「图转文本」写回 JSON（与选择器视图同一套机制） */
+        nodeType: type,
+        attrs: attrs,
+        markup: markup,
+        ports: { groups: gatePortGroups(), items: ports }
+    });
 };
 app.ELCreate = function (GraphDesc) {
     var result = [];
@@ -814,7 +1066,7 @@ app.ELDump = function (JsonCells) {
         else {
             /* 优先读 nodeType（改造新增，不受改名影响）；
                回退到 attrs.label.text 以兼容改造前生成的图与旧 JSON。 */
-            var elemType = oneElem.nodeType || oneElem.attrs.label.text;
+            var elemType = (oneElem.nodeType) || (oneElem.attrs && oneElem.attrs.label ? oneElem.attrs.label.text : null);
             if ("SEL" == elemType) {
                 result.nodeArray.push({
                     "key": oneElem.id,
@@ -824,7 +1076,9 @@ app.ELDump = function (JsonCells) {
                 result.nodeArray.push({
                     "key": oneElem.id,
                     "type": elemType,
-                    "name": oneElem.attrs.name.text
+                    /* 手改过的 JSON 或早期生成的图可能没有 name，这里兜底避免抛异常 */
+                    "name": (oneElem.attrs && oneElem.attrs.name && undefined !== oneElem.attrs.name.text)
+                        ? oneElem.attrs.name.text : ""
                 });
             }
         }
@@ -898,87 +1152,737 @@ function escapeHtml(s) {
     });
 }
 
-app.parseLogic = function () {
-    var exprText = document.getElementById("ReversePol").value;
-    var resultParsed = LogicParser(exprText);
+/* ===========================================================================
+ * 解析流程
+ * ---------------------------------------------------------------------------
+ * · 两种输入记法：中缀（默认，好读）/ 后缀（逆波兰）
+ *   中缀先翻译成后缀，再走完全相同的既有管线 —— 下游零改动，不可能引入回归
+ * · 实时预览：输入防抖 400ms 自动解析；失败时【保留上一张图】，只在输入框下报错，
+ *   避免用户打到一半就被清空画布
+ * · 两种视图：选择器（化简后的 MUX 网络）/ 逻辑门（原表达式的门电路）
+ * ========================================================================*/
 
-    /* 统一结果对象：{ ok:true, tree, quant } 或 { ok:false, code, message } */
+var appState = {
+    inputMode: "infix",     /* "infix" | "rpn" */
+    viewMode: "selector",   /* "selector" | "gate" */
+    lastRpn: "",            /* 最近一次成功解析所用的后缀式 */
+    lastExpr: "",           /* 最近一次成功解析的原始输入 */
+    lastQuant: [],
+    lastModel: null,        /* 选择器视图：cube 路径集 */
+    lastGateTree: null,     /* 逻辑门视图：运算符树 */
+    previewTimer: null
+};
+
+/* ---------------- 输入框内联错误 ---------------- */
+function repeatChar(ch, n) {
+    var s = "";
+    for (var i = 0; i < n; i++) { s += ch; }
+    return s;
+}
+
+/* 在输入框下方标红报错；带位置时附一行指位符 */
+function showInlineError(message, text, index, length) {
+    var box = document.getElementById("inline-error");
+    var ta = document.getElementById("ReversePol");
+    if (!box) { return; }
+    box.innerHTML = "";
+
+    var msg = document.createElement("div");
+    msg.className = "ie-msg";
+    msg.textContent = message;
+    box.appendChild(msg);
+
+    if ("number" === typeof index && text && text.length) {
+        var at = Math.max(0, Math.min(index, text.length));
+        var width = Math.max(1, length || 1);
+        if (at + width > text.length) { width = Math.max(1, text.length - at); }
+        var pre = document.createElement("pre");
+        pre.textContent = text + "\n" + repeatChar(" ", at) + repeatChar("^", width);
+        box.appendChild(pre);
+    }
+    box.hidden = false;
+    if (ta) { ta.classList.add("is-invalid"); }
+}
+
+function clearInlineError() {
+    var box = document.getElementById("inline-error");
+    var ta = document.getElementById("ReversePol");
+    if (box) { box.hidden = true; box.innerHTML = ""; }
+    if (ta) { ta.classList.remove("is-invalid"); }
+}
+
+/* ---------------- 画布重建 ---------------- */
+function buildCurrentView() {
+    if ("gate" === appState.viewMode) {
+        if (!appState.lastGateTree) { return { nodeArray: [], linkArray: [] }; }
+        return GateViewGen(appState.lastGateTree);
+    }
+    if (!appState.lastModel) { return { nodeArray: [], linkArray: [] }; }
+    return ViewGen(appState.lastModel);
+}
+
+function updateCanvasHint() {
+    var hint = document.getElementById("canvas-hint");
+    if (!hint) { return; }
+    hint.hidden = graph.getCells().length > 0;
+}
+
+/* 按当前视图重建画布，并把结果同步到「模型」JSON、真值表与本地存档 */
+function renderCurrentView() {
+    var view = buildCurrentView();
+    if (view.error) {
+        setStatus("图形生成失败：" + view.error, "error");
+        return null;
+    }
+    origin = view;
+    currentQuant = appState.lastQuant || [];
+    if (currentQuant.length) { origin.quantPrefix = currentQuant; }
+    document.getElementById("myModel").value = JSON.stringify(origin);
+
+    app.updateGraph();
+    updateCanvasHint();
+    renderQuantPrefix(currentQuant);
+    renderStats(appState.lastModel);
+    renderTruthTable();
+    persistWorkspace();
+    return view;
+}
+
+/* ---------------- 解析主流程 ---------------- */
+app.parseLogic = function (opts) {
+    var force = !!(opts && opts.force);
+    var src = document.getElementById("ReversePol").value;
+
+    /* ① 中缀先翻译成后缀；后缀模式直接用原串 */
+    var conv = ("rpn" === appState.inputMode) ? { ok: true, rpn: src } : InfixToRPN(src);
+    if (!conv.ok) {
+        showInlineError(conv.message, src, conv.index, conv.length);
+        setStatus(conv.message, "error");
+        return false;                       /* 保留上一张图，不破坏用户已有成果 */
+    }
+    var rpn = conv.rpn;
+
+    /* ② 走既有的后缀管线 */
+    var resultParsed = LogicParser(rpn);
     if (!resultParsed || !resultParsed.ok) {
-        setStatus((resultParsed && resultParsed.message) || LOGIC_ERRORS.E_INTERNAL, "error");
-        renderQuantPrefix([]);
-        renderStats(null);
-        return;
+        var rMsg = (resultParsed && resultParsed.message) || LOGIC_ERRORS.E_INTERNAL;
+        showInlineError(rMsg, src,
+            resultParsed ? resultParsed.index : null,
+            resultParsed ? resultParsed.length : null);
+        setStatus(rMsg, "error");
+        return false;
     }
 
-    var model, viewModel;
+    /* ③ 逻辑门视图另取一棵树：保留量词结构，避免展开成 (0∨b)∧(1∨b) 这种读不懂的形状 */
+    var gateParsed = LogicParser(rpn, { nodeKind: "gate", keepQuantifier: true });
+
+    /* ④ 化简 */
+    var model;
     try {
         resetModelGenBudget();
         model = ModelGen(resultParsed.tree);
-
         if (model.value.length > LOGIC_LIMITS.MAX_PATHS) {
+            showInlineError(LOGIC_ERRORS.E_TOO_MANY_PATHS, src, null, null);
             setStatus(LOGIC_ERRORS.E_TOO_MANY_PATHS, "error");
-            renderQuantPrefix([]);
-            renderStats(null);
-            return;
+            return false;
         }
-
-        /* 量词不进入节点结构：它消去了被绑定变量，图上没有对应节点可标。
-           量词信息只走两处 —— 画布上方的前缀条，与模型 JSON 的顶层可选字段。 */
-        viewModel = ViewGen(model);
     } catch (e) {
-        if (e && "LOGIC_BUDGET_EXCEEDED" === e.message) {
-            setStatus(LOGIC_ERRORS.E_BUDGET, "error");
-        } else {
-            setStatus(LOGIC_ERRORS.E_INTERNAL + "（" + ((e && e.message) ? e.message : "未知原因") + "）", "error");
-        }
-        renderQuantPrefix([]);
-        renderStats(null);
-        return;
+        var bMsg = (e && "LOGIC_BUDGET_EXCEEDED" === e.message)
+            ? LOGIC_ERRORS.E_BUDGET
+            : LOGIC_ERRORS.E_INTERNAL + "（" + ((e && e.message) ? e.message : "未知原因") + "）";
+        showInlineError(bMsg, src, null, null);
+        setStatus(bMsg, "error");
+        return false;
     }
 
-    if (viewModel.error) {
-        setStatus("化简结果无法生成图形：路径集中找不到公共根变量。", "error");
-        renderQuantPrefix([]);
-        renderStats(null);
-        return;
-    }
+    /* ⑤ 成功：更新状态并（必要时）重建画布 */
+    clearInlineError();
 
-    origin = viewModel;
-    currentQuant = resultParsed.quant || [];
-    if (currentQuant.length) {
-        origin.quantPrefix = currentQuant;
-    }
-    document.getElementById("myModel").value = JSON.stringify(origin);
+    var changed = (rpn !== appState.lastRpn) || force;
+    appState.lastRpn = rpn;
+    appState.lastExpr = src;
+    appState.lastQuant = resultParsed.quant || [];
+    appState.lastModel = model;
+    appState.lastGateTree = gateParsed.ok ? gateParsed.tree : null;
 
-    /* 解析后立即出图。
-       原站是两步流程：先「解析文本」只产出 JSON，再点「文本转图」才渲染。
-       实测确认那样做会让用户以为「解析」没生效。这里改为解析后直接渲染，
-       「文本转图」按钮与手工改 JSON 的用法完全保留，能力只增不减。 */
-    try {
-        app.updateGraph();
-    } catch (e) {
-        setStatus("图形渲染失败：" + ((e && e.message) ? e.message : "未知原因"), "error");
-        renderQuantPrefix(currentQuant);
+    if (changed || 0 === graph.getCells().length) {
+        if (!renderCurrentView()) { return false; }
+    } else {
+        renderQuantPrefix(appState.lastQuant);
         renderStats(model);
-        return;
+        renderTruthTable();
     }
 
-    renderQuantPrefix(currentQuant);
-    renderStats(model);
-
-    var quantCount = resultParsed.quant.length;
-    setStatus("解析完成，图形已生成。"
-        + (quantCount ? "（已绑定 " + quantCount + " 个量词）" : "")
-        + " 可在「模型 JSON」里手工修改后点「文本转图」重新渲染。", "ok");
+    var modeName = ("gate" === appState.viewMode) ? "逻辑门视图" : "选择器视图";
+    var qt = appState.lastQuant.length;
+    setStatus("解析完成（" + modeName + "）。"
+        + (qt ? "已绑定 " + qt + " 个量词。" : "")
+        + " 等价后缀式：" + (rpn || "（空）"), "ok");
+    return true;
 };
 
-/* 示例快捷入口：填入表达式并立即解析，方便首次上手与演示量词语法 */
+/* 输入防抖自动预览：用户反馈"边打边出图" */
+function schedulePreview() {
+    if (appState.previewTimer) { clearTimeout(appState.previewTimer); }
+    appState.previewTimer = setTimeout(function () {
+        appState.previewTimer = null;
+        app.parseLogic({ preview: true });
+    }, 400);
+}
+
+/* 示例快捷入口 */
 app.useSample = function (expr) {
     var box = document.getElementById("ReversePol");
     if (!box) { return; }
     box.value = expr;
-    app.parseLogic();
+    app.parseLogic({ force: true });
+    box.focus();
 };
+
+/* ===========================================================================
+ * 输入记法切换
+ * ========================================================================*/
+var SAMPLES = {
+    infix: [
+        ["(a AND b) -> fe", "(a AND b) → fe"],
+        ["a OR b AND NOT c", "a ∨ b ∧ ¬c"],
+        ["∀x(a AND b)", "∀x(a ∧ b)"],
+        ["a OR b IFF b OR a", "交换律"]
+    ],
+    rpn: [
+        ["a b . fe >", "a b . fe >"],
+        ["a b c < . ,", "a b c < . ,"],
+        ["a b . x !", "a b . x !"],
+        ["a b , b a , =", "a b , b a , ="]
+    ]
+};
+
+var PLACEHOLDER = {
+    infix: "例如：(a AND b) -> fe     支持 AND / OR / NOT / -> / <-> ，以及量词 ∀x() ∃x()",
+    rpn: "例如：a b . fe >     操作数在前、操作符在后；量词写作 a b . x ?"
+};
+
+function renderSamples() {
+    var wrap = document.getElementById("samples");
+    if (!wrap) { return; }
+    wrap.innerHTML = '<span class="samples-label">示例</span>';
+    (SAMPLES[appState.inputMode] || []).forEach(function (item) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.textContent = item[1];
+        b.title = "填入：" + item[0];
+        b.addEventListener("click", function () { app.useSample(item[0]); });
+        wrap.appendChild(b);
+    });
+}
+
+/* 只同步记法的界面表现，不产生副作用（供初始化与恢复存档调用） */
+function applyInputModeUI() {
+    var mode = appState.inputMode;
+    var segs = document.querySelectorAll("#mode-switch .seg");
+    for (var i = 0; i < segs.length; i++) {
+        segs[i].classList.toggle("is-active", segs[i].getAttribute("data-mode") === mode);
+    }
+    var ta = document.getElementById("ReversePol");
+    if (ta) { ta.placeholder = PLACEHOLDER[mode]; }
+    renderSamples();
+}
+
+app.setInputMode = function (mode) {
+    if ("infix" !== mode && "rpn" !== mode) { return; }
+    if (mode === appState.inputMode) { return; }
+
+    /* 若输入框里正是刚解析成功的那条，顺便翻译成另一种记法，省得用户重打 */
+    var box = document.getElementById("ReversePol");
+    var current = box ? box.value.trim() : "";
+    if (box && current && current === appState.lastExpr && appState.lastRpn) {
+        box.value = ("rpn" === mode) ? appState.lastRpn : current;
+    }
+
+    appState.inputMode = mode;
+    applyInputModeUI();
+    clearInlineError();
+    persistWorkspace();
+    setStatus(("infix" === mode)
+        ? "已切到中缀写法：直接写 a AND b -> c 即可。"
+        : "已切到后缀写法：操作数在前、操作符在后。", "info");
+};
+
+/* ===========================================================================
+ * 视图切换
+ * ========================================================================*/
+function applyViewModeUI() {
+    var segs = document.querySelectorAll("#view-switch .seg");
+    for (var i = 0; i < segs.length; i++) {
+        segs[i].classList.toggle("is-active", segs[i].getAttribute("data-view") === appState.viewMode);
+    }
+}
+
+/* 当前图形是否被手工改动过（用来在切视图前提醒会重新生成） */
+function hasManualEdits() {
+    if (!graph.getCells().length) { return false; }
+    try {
+        var now = app.ELDump(graph.toJSON().cells);
+        return JSON.stringify(now.nodeArray) !== JSON.stringify(origin.nodeArray || [])
+            || JSON.stringify(now.linkArray) !== JSON.stringify(origin.linkArray || []);
+    } catch (e) {
+        return false;
+    }
+}
+
+app.setViewMode = function (mode) {
+    if ("selector" !== mode && "gate" !== mode) { return; }
+    if (mode === appState.viewMode) { return; }
+
+    if ("gate" === mode && !appState.lastGateTree) {
+        setStatus("逻辑门视图需要先解析一个表达式。当前图形保持不变。", "error");
+        return;
+    }
+
+    var manual = hasManualEdits();
+    appState.viewMode = mode;
+    applyViewModeUI();
+
+    if (appState.lastModel) {
+        renderCurrentView();
+        setStatus("已切到" + (("gate" === mode) ? "逻辑门视图（原表达式的与/或/非门电路）" : "选择器视图（化简后的 MUX 网络）")
+            + "。" + (manual ? "手工添加的节点已按表达式重新生成。" : ""), "info");
+    } else {
+        persistWorkspace();
+    }
+};
+
+/* ===========================================================================
+ * 右侧标签页
+ * ========================================================================*/
+app.setTab = function (name) {
+    var tabs = document.querySelectorAll("#tabs .tab");
+    for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.toggle("is-active", tabs[i].getAttribute("data-tab") === name);
+    }
+    var panels = document.querySelectorAll(".tab-panel");
+    for (var j = 0; j < panels.length; j++) {
+        var on = panels[j].getAttribute("data-panel") === name;
+        panels[j].classList.toggle("is-active", on);
+        panels[j].hidden = !on;
+    }
+};
+
+/* ===========================================================================
+ * 真值表
+ * ========================================================================*/
+function renderTruthTable() {
+    var wrap = document.getElementById("truth-table-wrap");
+    var summary = document.getElementById("truth-summary");
+    if (!wrap || !summary) { return; }
+    wrap.innerHTML = "";
+
+    if (!appState.lastModel) {
+        summary.textContent = "解析后这里会列出真值表。";
+        return;
+    }
+
+    var vars = appState.lastModel.order || [];
+    var table = TruthTable(vars, appState.lastModel.value || []);
+
+    if (table.truncated) {
+        summary.textContent = "变量过多（" + vars.length + " 个），真值表超过 " + (1 << TRUTH_MAX_VARS) + " 行，未展开。";
+        return;
+    }
+
+    var trueCount = 0;
+    table.rows.forEach(function (r) { if (1 === r.out) { trueCount++; } });
+
+    summary.innerHTML = "";
+    var line1 = document.createElement("div");
+    line1.innerHTML = "自变量 <b>"
+        + (vars.length ? vars.join(", ") : "（无，已化简为常量）")
+        + "</b><br>共 <b>" + table.rows.length + "</b> 种取值，输出为 1 的有 <b>" + trueCount + "</b> 种";
+    summary.appendChild(line1);
+
+    var line2 = document.createElement("div");
+    line2.className = "hint";
+    line2.textContent = (trueCount === table.rows.length)
+        ? "该表达式恒真（永真式）。"
+        : (0 === trueCount ? "该表达式恒假（矛盾式）。" : "标绿的行表示输出为 1 的取值组合。");
+    summary.appendChild(line2);
+
+    var tbl = document.createElement("table");
+    tbl.className = "truth-table";
+
+    var thead = document.createElement("thead");
+    var trh = document.createElement("tr");
+    var thNo = document.createElement("th");
+    thNo.textContent = "#";
+    trh.appendChild(thNo);
+    vars.forEach(function (v) {
+        var th = document.createElement("th");
+        th.textContent = v;
+        trh.appendChild(th);
+    });
+    var thOut = document.createElement("th");
+    thOut.textContent = "结果";
+    thOut.className = "is-out";
+    trh.appendChild(thOut);
+    thead.appendChild(trh);
+    tbl.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    table.rows.forEach(function (r, i) {
+        var tr = document.createElement("tr");
+        if (1 === r.out) { tr.className = "is-true"; }
+
+        var tdNo = document.createElement("td");
+        tdNo.textContent = i + 1;
+        tdNo.className = "is-var-0";
+        tr.appendChild(tdNo);
+
+        r.bits.forEach(function (b) {
+            var td = document.createElement("td");
+            td.textContent = b;
+            td.className = (1 === b) ? "is-var-1" : "is-var-0";
+            tr.appendChild(td);
+        });
+
+        var tdOut = document.createElement("td");
+        tdOut.textContent = r.out;
+        tdOut.className = (1 === r.out) ? "is-out-1" : "is-out-0";
+        tr.appendChild(tdOut);
+
+        tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    wrap.appendChild(tbl);
+}
+
+/* ===========================================================================
+ * 画布操作：适应窗口 / 手动添加节点 / 选中元素
+ * ========================================================================*/
+app.fitView = function () {
+    if (!graph.getCells().length) {
+        setStatus("画布是空的，没有可适应的内容。", "info");
+        return;
+    }
+    newScale = 1;
+    paper.fitToContent({ padding: 40, allowNewOrigin: "any" });
+    setContainerAndMini();
+    paperContainer.css({
+        left: Math.round((mainContainer.width() - paperContainer.width()) / 2),
+        top: Math.round((mainContainer.height() - paperContainer.height()) / 2),
+        position: "absolute"
+    });
+    miniView.css({
+        height: miniScale * mainContainer.height(),
+        width: miniScale * mainContainer.width(),
+        left: -1 * miniScale * paperContainer.position().left,
+        top: -1 * miniScale * paperContainer.position().top
+    });
+    setStatus("已适应窗口。", "info");
+};
+
+/* 视口中心对应的模型坐标：用来把新节点放在眼前而不是某个角落 */
+function viewportCenter() {
+    var el = mainContainer && mainContainer.length ? mainContainer[0] : null;
+    if (!el) { return { x: 0, y: 0 }; }
+    var r = el.getBoundingClientRect();
+    return paper.clientToLocalPoint({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+}
+
+app.addNode = function (type) {
+    var key, node;
+    var stamp = Date.now().toString(36);
+
+    if ("VAR" === type) {
+        var n = 1;
+        while (graph.getCell("add-var-" + n)) { n++; }
+        key = "add-var-" + n;
+        node = { key: key, type: "VAR", name: "x" + n };
+    } else if ("0" === type || "1" === type) {
+        key = "add-const-" + type + "-" + stamp;
+        node = {
+            key: key,
+            type: ("1" === type) ? "CONST1" : "CONST0",
+            name: ("1" === type) ? "常量 1" : "常量 0"
+        };
+    } else {
+        key = "add-" + String(type).toLowerCase() + "-" + stamp;
+        node = { key: key, type: type, name: (GATE_TYPE_CN[type] || type) };
+    }
+
+    var cell = app.makeGateNode(node);
+    if (!cell) {
+        setStatus("未知的节点类型：" + type, "error");
+        return;
+    }
+
+    var c = viewportCenter();
+    cell.position(Math.round(c.x - cell.size().width / 2), Math.round(c.y - cell.size().height / 2));
+    graph.addCell(cell);
+    updateCanvasHint();
+
+    app.selectCell(key);
+    setStatus("已添加「" + (node.name || type) + "」。拖动可移动位置；从输出端按住拖到输入端即可连线。", "ok");
+};
+
+/* 选中一个元素：高亮 + 填入属性面板 + 切到属性页 */
+app.selectCell = function (id) {
+    if (undefined === id || null === id || !graph.getCell(id)) { return; }
+    ERKeyNow = id;
+    chosedElement.Nodes.add(id);
+    ERHighlightLink(id);
+    fillPropsPanel(graph.getCell(id));
+    app.setTab("props");
+};
+
+function hasSelector(cell, sel) {
+    var markup = cell.get("markup") || [];
+    for (var i = 0; i < markup.length; i++) {
+        if (markup[i].selector === sel) { return true; }
+    }
+    return false;
+}
+
+function fillPropsPanel(cell) {
+    var labelEl = document.getElementById("ERName");
+    var nameEl = document.getElementById("ERMemo");
+    if (!cell) {
+        if (labelEl) { labelEl.value = ""; }
+        if (nameEl) { nameEl.value = ""; }
+        return;
+    }
+    var attrs = cell.attr() || {};
+    var labelText = (attrs.label && undefined !== attrs.label.text) ? attrs.label.text : "";
+    var nameText = "";
+    if (attrs.name && undefined !== attrs.name.text) { nameText = attrs.name.text; }
+    else if (attrs.symbol && undefined !== attrs.symbol.text) { nameText = attrs.symbol.text; }
+    if (labelEl) { labelEl.value = labelText; }
+    if (nameEl) { nameEl.value = nameText; }
+}
+
+/* ===========================================================================
+ * 导出图片（SVG / PNG）
+ * ---------------------------------------------------------------------------
+ * JointJS v3.3.1 这个构建里没有 paper.toSVG，所以自己来：
+ *   克隆画布 SVG → 去掉网格 → 裁到内容 bbox → 内联图标 → 下载
+ * 内联图标是必须的：不内联的话，导出的独立 SVG 里相对路径会断链，
+ * PNG 经 canvas 绘制时也会被判为跨源污染而无法导出。
+ * ========================================================================*/
+var SVG_NS = "http://www.w3.org/2000/svg";
+
+function inlineSvgImages(root) {
+    var imgs = Array.prototype.slice.call(root.querySelectorAll("image"));
+    if (!imgs.length) { return Promise.resolve(); }
+    return Promise.all(imgs.map(function (img) {
+        var href = img.getAttribute("xlink:href") || img.getAttribute("href");
+        if (!href || 0 === href.indexOf("data:")) { return Promise.resolve(); }
+        return fetch(href).then(function (res) {
+            if (!res.ok) { throw new Error("HTTP " + res.status); }
+            return res.arrayBuffer();
+        }).then(function (buf) {
+            var bytes = new Uint8Array(buf);
+            var bin = "";
+            for (var i = 0; i < bytes.length; i++) { bin += String.fromCharCode(bytes[i]); }
+            var mime = /\.png$/i.test(href) ? "image/png" : "image/svg+xml";
+            var uri = "data:" + mime + ";base64," + btoa(bin);
+            img.setAttribute("xlink:href", uri);
+            img.setAttribute("href", uri);
+        }).catch(function () { /* 单个图标失败不阻断整体导出 */ });
+    }));
+}
+
+function buildExportSvg() {
+    var src = document.querySelector("#paper svg");
+    if (!src) { return null; }
+
+    var clone = src.cloneNode(true);
+
+    /* 导成图片时网格是噪音，去掉 */
+    var grid = clone.querySelector(".joint-paper-grid");
+    if (grid && grid.parentNode) { grid.parentNode.removeChild(grid); }
+
+    var bbox = paper.getContentBBox();
+    var pad = 24;
+    if (!bbox || !(bbox.width > 0)) { bbox = { x: 0, y: 0, width: 400, height: 200 }; }
+    var w = Math.ceil(bbox.width + pad * 2);
+    var h = Math.ceil(bbox.height + pad * 2);
+
+    clone.setAttribute("xmlns", SVG_NS);
+    clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    clone.setAttribute("viewBox", (bbox.x - pad) + " " + (bbox.y - pad) + " " + w + " " + h);
+    clone.setAttribute("width", w);
+    clone.setAttribute("height", h);
+    clone.removeAttribute("style");
+
+    /* 铺一层白底：SVG 本身无背景，贴到深色背景上会看不清 */
+    var bg = document.createElementNS(SVG_NS, "rect");
+    bg.setAttribute("x", bbox.x - pad);
+    bg.setAttribute("y", bbox.y - pad);
+    bg.setAttribute("width", w);
+    bg.setAttribute("height", h);
+    bg.setAttribute("fill", "#ffffff");
+    clone.insertBefore(bg, clone.firstChild);
+
+    return { svg: clone, width: w, height: h };
+}
+
+function downloadBlob(blob, filename) {
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.download = filename;
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { window.URL.revokeObjectURL(url); }, 1500);
+}
+
+function exportFileName(ext) {
+    var base = "logicsim";
+    if (appState.lastExpr) {
+        var slug = appState.lastExpr.replace(/[\\/:*?"<>|\s]+/g, "_").slice(0, 40);
+        if (slug) { base = slug; }
+    }
+    return base + "." + ext;
+}
+
+app.exportSVG = function () {
+    var built = buildExportSvg();
+    if (!built) { setStatus("导出失败：找不到画布。", "error"); return; }
+    inlineSvgImages(built.svg).then(function () {
+        var str = '<?xml version="1.0" encoding="UTF-8"?>\n'
+            + new XMLSerializer().serializeToString(built.svg);
+        downloadBlob(new Blob([str], { type: "image/svg+xml;charset=utf-8" }), exportFileName("svg"));
+        setStatus("已导出 SVG（矢量，可无损放大，适合放进 PPT）。", "ok");
+    }).catch(function (e) {
+        setStatus("导出 SVG 失败：" + e.message, "error");
+    });
+};
+
+app.exportPNG = function () {
+    var built = buildExportSvg();
+    if (!built) { setStatus("导出失败：找不到画布。", "error"); return; }
+    inlineSvgImages(built.svg).then(function () {
+        var str = new XMLSerializer().serializeToString(built.svg);
+        var img = new Image();
+        img.onload = function () {
+            var scale = 2;                       /* 2 倍分辨率，贴进文档不糊 */
+            var canvas = document.createElement("canvas");
+            canvas.width = built.width * scale;
+            canvas.height = built.height * scale;
+            var c2 = canvas.getContext("2d");
+            c2.fillStyle = "#ffffff";
+            c2.fillRect(0, 0, canvas.width, canvas.height);
+            c2.drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(function (blob) {
+                if (!blob) { setStatus("导出 PNG 失败：浏览器未能生成图片。", "error"); return; }
+                downloadBlob(blob, exportFileName("png"));
+                setStatus("已导出 PNG（2 倍分辨率）。", "ok");
+            }, "image/png");
+        };
+        img.onerror = function () { setStatus("导出 PNG 失败：SVG 渲染出错。", "error"); };
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(str);
+    }).catch(function (e) {
+        setStatus("导出 PNG 失败：" + e.message, "error");
+    });
+};
+
+/* ===========================================================================
+ * 本机持久化（localStorage）
+ * ---------------------------------------------------------------------------
+ * 「保存修改」只改当前图形并同步到 JSON 文本框，不落磁盘；真正落盘要「导出文件」。
+ * 工作区（表达式 + 视图 + 模型）自动存在浏览器本地，关掉页面再打开还在。
+ * ========================================================================*/
+var STORAGE_KEY = "logicsim.workspace.v1";
+
+function persistWorkspace() {
+    try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            v: 1,
+            inputMode: appState.inputMode,
+            viewMode: appState.viewMode,
+            expr: document.getElementById("ReversePol").value,
+            rpn: appState.lastRpn,
+            model: origin
+        }));
+    } catch (e) {
+        /* 隐私模式或配额用满：静默降级，不影响正常使用 */
+    }
+}
+
+function restoreWorkspace() {
+    var raw = null;
+    try { raw = window.localStorage.getItem(STORAGE_KEY); } catch (e) { return false; }
+    if (!raw) { return false; }
+
+    var data;
+    try { data = JSON.parse(raw); } catch (e) { return false; }
+    if (!data || 1 !== data.v) { return false; }
+
+    if ("rpn" === data.inputMode || "infix" === data.inputMode) {
+        appState.inputMode = data.inputMode;
+    }
+    if ("gate" === data.viewMode || "selector" === data.viewMode) {
+        appState.viewMode = data.viewMode;
+    }
+    applyInputModeUI();
+    applyViewModeUI();
+
+    if (data.expr) {
+        var box = document.getElementById("ReversePol");
+        if (box) { box.value = data.expr; }
+        /* 先按表达式重建：这样真值表、量词前缀、后缀式都能一起恢复 */
+        if (app.parseLogic({ force: true })) {
+            setStatus("已恢复上次的工作区。", "info");
+            return true;
+        }
+        /* 表达式已不可解析（例如手工编辑过 JSON）→ 退回直接渲染存档里的模型 */
+        clearInlineError();
+    }
+
+    if (data.model && data.model.nodeArray) {
+        origin = data.model;
+        currentQuant = quantFromModel(origin);
+        document.getElementById("myModel").value = JSON.stringify(origin);
+        app.updateGraph();
+        updateCanvasHint();
+        renderQuantPrefix(currentQuant);
+        renderStats(null, origin);
+        setStatus("已恢复上次的工作区（含手工编辑过的图形）。", "info");
+        return true;
+    }
+    return false;
+}
+
+app.clearStorage = function () {
+    try {
+        window.localStorage.removeItem(STORAGE_KEY);
+        setStatus("已清除本机存档。当前图形仍在，刷新后会从空白开始。", "info");
+    } catch (e) {
+        setStatus("清除失败：" + e.message, "error");
+    }
+};
+
+/* ===========================================================================
+ * 事件绑定与初始化
+ * ========================================================================*/
+function bindInputEvents() {
+    var ta = document.getElementById("ReversePol");
+    if (ta) {
+        /* 实时预览：边打边出图 */
+        ta.addEventListener("input", function () {
+            schedulePreview();
+        });
+        /* Ctrl/Cmd + Enter 立即解析 */
+        ta.addEventListener("keydown", function (e) {
+            if ((e.ctrlKey || e.metaKey) && 13 === e.keyCode) {
+                e.preventDefault();
+                if (appState.previewTimer) { clearTimeout(appState.previewTimer); appState.previewTimer = null; }
+                app.parseLogic({ force: true });
+            }
+        });
+    }
+}
 
 app.updateGraph = function () {
     graph.resetCells(app.ELCreate(origin));
@@ -1149,6 +2053,13 @@ app.ChangeName = function () {
 
 
 
-app.load();
-
-
+/* ===========================================================================
+ * 启动
+ * ========================================================================*/
+bindInputEvents();
+applyInputModeUI();
+applyViewModeUI();
+if (!restoreWorkspace()) {
+    app.load();
+    setStatus("就绪：输入表达式后会实时出图；也可以点「手动添加」从空白画布开始搭。", "ok");
+}
