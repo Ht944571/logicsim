@@ -1,3 +1,23 @@
+/* ============================================================================
+ * logicsim 样式表
+ * ----------------------------------------------------------------------------
+ * 改造要点：
+ *   1. 引入 CSS 自定义属性统一配色/间距/圆角，行内样式全部外移
+ *   2. 页面骨架用 Flexbox 重写，淘汰原来的 float + 固定百分比布局
+ *   3. 新增三档响应式断点（宽屏三栏 / 中屏收窄 / 窄屏上下堆叠）
+ *
+ * ⚠️ 不可改动的标识符（JS 强依赖，改名会直接让交互失联）：
+ *   .main-container  #paper-container  #paper        —— 画布平移/缩放/居中的尺寸基准
+ *   .mini-map  #mini-paper  #mini-view  #mini-resize —— 小地图，坐标按页面坐标计算
+ *   #app-resize  及其唯一的子元素                      —— 拖拽条，JS 会写它的 background-image
+ *   .right-container                                  —— 右侧面板，JS 会写它的 width
+ *   #quant-prefix  #status  #stats                    —— 解析结果的展示位
+ *   #ReversePol  #myModel  #ERName  #ERMemo  #fileToLoad  #inputFileNameToSaveAs
+ *
+ * ⚠️ .app-header 不能加 padding：小地图必须保持在页面 (0,0)，
+ *    否则 #mini-view 的绝对定位会整体偏移。
+ * ==========================================================================*/
+
 @font-face {
     font-family: 'TsangerYuYangT03';
     src: url('./lib/TsangerYuYangT-W03.ttf') format('truetype');
@@ -5,134 +25,825 @@
     font-style: normal;
 }
 
+:root {
+    /* 尺寸 */
+    --minimap-h: 150px;
+    --status-h: 40px;
+    --minimap-w: 300px;
+    --panel-w: 300px;
+    --gap: 10px;
 
-html, body, .joint-app {
+    /* 配色 */
+    --bg: #eef1f5;
+    --surface: #ffffff;
+    --surface-2: #f7f9fb;
+    --border: #dfe4ea;
+    --border-strong: #c6cdd6;
+    --text: #1f2430;
+    --text-muted: #6b7280;
+    --text-faint: #9aa3af;
+
+    --primary: #2f6fed;
+    --primary-dark: #2358c4;
+    --accent: #e8590c;
+    --accent-dark: #c74a06;
+
+    --ok: #0f7b4f;
+    --err: #c92a2a;
+    --info: #5f5e5a;
+
+    /* 节点色（与 JS 中 makeNode 的取色保持一致，仅用于图例 */
+    --node-import: #ff0000;
+    --node-sel: #ffcccc;
+    --node-zero: #fe854f;
+    --node-one: #31d0c6;
+    --node-export: #ff00ff;
+
+    --radius: 10px;
+    --radius-sm: 6px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+.joint-app {
     position: relative;
     width: 100%;
     height: 100%;
-    box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
 body {
     -webkit-user-select: none;
-    -moz-user-select: -moz-none;
+    -moz-user-select: none;
     user-select: none;
-    font-family: TsangerYuYangT03, sans-serif, Arial;
+    font-family: TsangerYuYangT03, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg);
     overflow: hidden;
-    display:block;
+}
+
+/* 统一滚动条观感（画布区域除外） */
+.app-header ::-webkit-scrollbar,
+.right-container ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.app-header ::-webkit-scrollbar-thumb,
+.right-container ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 页面骨架：Flex 纵向
+ * ------------------------------------------------------------------------ */
+.joint-app {
+    display: flex;
+    flex-direction: column;
 }
 
 .app-header {
-    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
     width: 100%;
-    height: 150px;
+    /* 高度自适应，但保证不低于原版 150px；上限 44vh 后改为内部滚动 */
+    height: auto;
+    min-height: var(--minimap-h);
+    max-height: 44vh;
     overflow: hidden;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    /* 不要加 padding —— 见文件头说明 */
 }
 
 .app-body {
     position: relative;
-    height: -moz-calc(100% - 60px);
-    height: -webkit-calc(100% - 60px);
-    height: calc(100% - 60px);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
 }
 
+/* ---------------------------------------------------------------------------
+ * 小地图
+ * ------------------------------------------------------------------------ */
 .mini-map {
-    display: inline-block;
-    width: 300px;
-    height: 150px;
+    position: relative;
+    flex: 0 0 var(--minimap-w);
+    width: var(--minimap-w);
+    /* 高度跟随头部。小地图内的视口框尺寸由 JS 按 miniScale = 300 / 画布宽 计算，
+       这个 300 与 --minimap-w 对应，因此 --minimap-w 不能改。 */
+    height: 100%;
     padding: 0;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+}
+
+#mini-view {
+    border: 2px solid #31d0c6;
+    position: absolute;
+    background-color: rgba(47, 111, 237, 0.12);
+    cursor: move;
 }
 
 #mini-resize {
     position: absolute;
-right: 0;
-bottom: 0;
-width: 10px;
-height: 10px;
-cursor: nwse-resize;
-margin: 0 -7px -7px 0;
+    right: 0;
+    bottom: 0;
+    width: 10px;
+    height: 10px;
+    cursor: nwse-resize;
+    margin: 0 -7px -7px 0;
     border-radius: 50%;
-border: 2px solid #31d0c6;
-background-color: #fff;
+    border: 2px solid #31d0c6;
+    background-color: #fff;
 }
 
-/*  Toolbar  */
+/* ---------------------------------------------------------------------------
+ * 顶部工具区
+ * ------------------------------------------------------------------------ */
 .title-container {
-    display: inline-block;
-    position: absolute;
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
     height: 100%;
-    left: 300px;
-    right: 0;
-    box-sizing: border-box;
-    background-color: #f0f8ff;
-    z-index: 10;
     overflow: auto;
+    padding: 10px 12px;
+    background: var(--surface);
+    z-index: 10;
+}
+
+.io-block,
+.ops-block {
+    min-width: 0;
+}
+
+.io-block {
+    margin-bottom: 8px;
+}
+
+.block-title {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.io-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.io-actions .btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 96px;
+}
+
+/* 操作符速查 */
+.ops-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 6px;
+    padding: 0;
+    list-style: none;
+}
+
+.ops-list li {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-2);
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.ops-list li.is-new {
+    border-color: #f7c9a8;
+    background: #fff5ec;
+    color: var(--accent-dark);
+}
+
+.ops-list code {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.ops-list li.is-new code {
+    color: var(--accent-dark);
+}
+
+.ops-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.ops-hint b {
+    font-weight: 400;
+    color: var(--text);
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+/* 示例按钮 */
+.samples {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.samples-label {
+    font-size: 12px;
+    color: var(--text-faint);
+}
+
+.chip {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all .12s ease;
+}
+
+.chip:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: #f2f6ff;
+}
+
+/* ---------------------------------------------------------------------------
+ * 布局：画布 / 拖拽条 / 右侧面板 / 状态栏
+ * 这四个元素沿用绝对定位 —— 它们的 left/top/right/width 会被 JS 直接改写，
+ * 是平移、缩放、面板拖拽与折叠的计算基准，不能换成 Flex。
+ * ------------------------------------------------------------------------ */
+.main-container {
+    position: absolute;
+    top: 0;
+    left: var(--gap);
+    right: calc(var(--panel-w) + 6px);
+    bottom: var(--status-h);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
 }
 
 .left-container {
     position: absolute;
     left: 0;
     top: 0;
-    width: 10px;
+    width: var(--gap);
     height: 100%;
-    overflow: auto;
-    background-color: #f0f8ff;
+    overflow: hidden;
+    background: var(--bg);
     z-index: 10;
 }
 
-
-.main-container {
+#paper-container {
     position: absolute;
-    top: 0;
-    left: 10px;
-    right: 306px;
-    bottom: 150px;
-    overflow: hidden;
-    border:2px solid #D15DEE;
-    box-sizing: border-box;
 }
 
-#app-resize{
+#app-resize {
     position: absolute;
     top: 0;
     width: 6px;
-    right: 300px;
-    bottom: 150px;
-    background-color: #eeeeee;
-    cursor:ew-resize;    
-}
-#app-resize:hover{
-    background-color:#ee5d70;
+    right: var(--panel-w);
+    bottom: var(--status-h);
+    background-color: var(--border);
+    cursor: ew-resize;
+    z-index: 12;
 }
 
-/*  Inspector  */
+#app-resize:hover {
+    background-color: var(--primary);
+}
+
+#app-resize .resize-handle {
+    position: absolute;
+    left: -35px;
+    top: 0;
+    width: 30px;
+    height: 30px;
+    background-image: url(assets/box-arrow-in-right.svg);
+    background-size: 100%;
+    cursor: pointer;
+    opacity: .55;
+}
+
+#app-resize .resize-handle:hover {
+    opacity: 1;
+}
+
 .right-container {
     position: absolute;
     top: 0;
     right: 0;
-    width: 300px;
-    bottom: 150px; /* navigator height */
-    /*width: 100%;*/
-    border:2px solid #ee5d70;
-    box-sizing: border-box;
+    width: var(--panel-w);
+    bottom: var(--status-h);
     overflow: auto;
-    background-color: #f0f8ff;
+    padding: 8px;
+    background: var(--surface-2);
+    border-left: 1px solid var(--border);
 }
 
-/*  Navigator  */
 .bottom-container {
     position: absolute;
+    left: 0;
     right: 0;
     bottom: 0;
-    left:10px;
-    width: 100%;
-    height: 150px;
-    background-color: #f0f8ff;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: var(--status-h);
+    padding: 0 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
     z-index: 10;
+    overflow: hidden;
 }
 
+/* 量词前缀条：浮在画布左上角，不拦截鼠标 */
+.quant-prefix {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    pointer-events: none;
+    z-index: 5;
+    max-width: calc(100% - 100px);
+}
 
+.qp-label {
+    font-size: 12px;
+    color: var(--text-faint);
+}
 
+.qp-empty {
+    font-size: 12px;
+    color: var(--text-faint);
+    opacity: .85;
+}
 
+.qp-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    background: var(--surface);
+}
+
+.qp-item i {
+    font-style: normal;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.qp-exists {
+    border-color: #9fd8c4;
+    background: #e7f7f1;
+    color: #0f6e56;
+}
+
+.qp-forall {
+    border-color: #f0c88a;
+    background: #fdf3e2;
+    color: #8a5a06;
+}
+
+/* ---------------------------------------------------------------------------
+ * 右侧面板
+ * ------------------------------------------------------------------------ */
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px;
+    margin-bottom: 8px;
+}
+
+.panel-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-subtitle {
+    margin: 10px 0 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.panel-note {
+    margin: 0 0 6px;
+    font-size: 12px;
+    color: var(--text-faint);
+}
+
+.panel-row {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.panel-row .btn {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * 表单控件
+ * ------------------------------------------------------------------------ */
+.input {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .12s ease, box-shadow .12s ease;
+    resize: vertical;
+}
+
+.input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(47, 111, 237, .14);
+}
+
+.input.mono {
+    font-family: ui-monospace, Consolas, "Courier New", monospace;
+}
+
+#ReversePol {
+    height: 52px;
+    resize: none;
+}
+
+#myModel {
+    height: 96px;
+    resize: vertical;
+}
+
+#ERMemo {
+    resize: vertical;
+}
+
+.field-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 8px 0 3px;
+}
+
+.hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--text-faint);
+}
+
+/* ---------------------------------------------------------------------------
+ * 按钮
+ * ------------------------------------------------------------------------ */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.btn-primary {
+    background: #eef3fe;
+    border-color: #c3d6fb;
+    color: var(--primary-dark);
+}
+
+.btn-primary:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.btn-accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.btn-accent:hover {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+}
+
+.btn-ghost {
+    background: var(--surface);
+    border-color: var(--border-strong);
+    color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* 「载入文本」：原实现是绝对定位的透明 file input 铺满按钮区 */
+.file-btn {
+    position: relative;
+    overflow: hidden;
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 12px;
+    border: 1px solid #b6dccb;
+    border-radius: var(--radius-sm);
+    background: #eaf9f2;
+    color: #0f6e56;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.file-btn:hover {
+    background: #d6f2e7;
+}
+
+.file-btn input[type="file"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 0;
+    padding: 0;
+    font-size: 40px;
+    cursor: pointer;
+    opacity: 0;
+    filter: alpha(opacity=0);
+}
+
+/* ---------------------------------------------------------------------------
+ * 状态栏 / 统计
+ * ------------------------------------------------------------------------ */
+#status {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.status-ok {
+    color: var(--ok);
+}
+
+.status-error {
+    color: var(--err);
+}
+
+.status-info {
+    color: var(--info);
+}
+
+.stats {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: ui-monospace, Consolas, monospace;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+}
+
+/* ---------------------------------------------------------------------------
+ * 说明列表与图例
+ * ------------------------------------------------------------------------ */
+.steps {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.steps li {
+    margin-bottom: 4px;
+}
+
+.legend {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 2px 0;
+}
+
+.legend i {
+    flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, .12);
+}
+
+.legend.plain li {
+    display: block;
+    padding: 1px 0;
+}
+
+.lg-import {
+    background: var(--node-import);
+}
+
+.lg-sel {
+    background: var(--node-sel);
+}
+
+.lg-zero {
+    background: var(--node-zero);
+}
+
+.lg-one {
+    background: var(--node-one);
+}
+
+.lg-export {
+    background: var(--node-export);
+}
+
+.legend code,
+.steps code {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0 4px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 响应式
+ * ------------------------------------------------------------------------ */
+
+/* 中屏：右侧面板收窄。注意不要改 --minimap-w，它必须与 JS 里的 300 保持一致 */
+@media (max-width: 1180px) {
+    :root {
+        --panel-w: 260px;
+    }
+
+    .ops-hint {
+        display: none;
+    }
+}
+
+/* 窄屏：改为上下堆叠 —— 画布在上（55%），右侧面板在下（其余），
+   隐藏小地图与拖拽条。
+   这里有三个必须同时成立的条件，否则画布尺寸计算会错乱：
+     1. .main-container 用 !important 覆盖 JS 写的行内 right
+     2. .right-container 用 !important 覆盖 JS 写的行内 width
+     3. app.ResizeBlock() 在窄屏直接 return（见 ViewGen.js） */
+@media (max-width: 900px) {
+    :root {
+        --status-h: 38px;
+    }
+
+    .app-header {
+        flex-direction: column;
+        max-height: 46vh;
+        overflow: auto;
+    }
+
+    .mini-map {
+        display: none;
+    }
+
+    .title-container {
+        padding: 8px 10px;
+    }
+
+    /* 左侧装饰条会盖住堆叠后的面板左边缘，窄屏隐藏 */
+    .left-container {
+        display: none;
+    }
+
+    .main-container {
+        left: 6px;
+        right: 6px !important;
+        bottom: auto !important;
+        height: 55%;
+        top: 0;
+    }
+
+    #app-resize {
+        display: none !important;
+    }
+
+    .right-container {
+        left: 0 !important;
+        right: 0 !important;
+        width: auto !important;
+        top: 57% !important;
+        bottom: var(--status-h) !important;
+    }
+
+    .ops-list {
+        gap: 4px;
+    }
+
+    .ops-list li {
+        padding: 1px 6px;
+        font-size: 11px;
+    }
+
+    .quant-prefix {
+        max-width: calc(100% - 24px);
+    }
+}
+
+/* 超窄屏：工具区进一步压缩 */
+@media (max-width: 560px) {
+    .samples-label {
+        display: none;
+    }
+
+    .io-actions {
+        gap: 6px;
+    }
+
+    .io-actions .btn {
+        min-width: 0;
+        flex: 1 1 100%;
+    }
+
+    .main-container {
+        height: 48%;
+    }
+
+    .right-container {
+        top: 50% !important;
+    }
+}
+
+/* 尊重系统「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+    }
+}

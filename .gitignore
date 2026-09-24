@@ -1,0 +1,12 @@
+# 测试基线副本（由 tests/export-baseline.sh 从 git 标签导出，不纳入版本控制）
+tests/.baseline/
+
+# 端到端验收的临时产物
+tests/artifacts/.warmup.png
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

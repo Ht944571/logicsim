@@ -1,0 +1,1717 @@
+[
+ {
+  "group": "legacy",
+  "expr": "a b .",
+  "note": "与",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "cf24c126"
+  },
+  "treeHash": "671265a9"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b ,",
+  "note": "或",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "9623e263"
+  },
+  "treeHash": "5eb36aa"
+ },
+ {
+  "group": "legacy",
+  "expr": "a <",
+  "note": "非",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a"
+  ],
+  "value": [
+   {
+    ".": "<",
+    "a": ">"
+   },
+   {
+    ".": ">",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "403003f1"
+  },
+  "treeHash": "57fd8a31"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b >",
+  "note": "推出",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": ">",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "eec3e903"
+  },
+  "treeHash": "7a4a9aaa"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b =",
+  "note": "等价",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 8,
+   "links": 10,
+   "hash": "444f7d0f"
+  },
+  "treeHash": "7dd21ce2"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b . fe >",
+  "note": "组合：与后推出",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "fe"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">",
+    "fe": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": ">",
+    "fe": "<"
+   },
+   {
+    ".": ">",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": ">",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 9,
+   "links": 10,
+   "hash": "f765da55"
+  },
+  "treeHash": "513ee8d2"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b . fe ge > =",
+  "note": "4 变量，16 种组合化简为 9 条路径",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "fe",
+   "ge"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">",
+    "fe": ">",
+    "ge": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": ">",
+    "fe": ">",
+    "ge": "<"
+   },
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">",
+    "fe": "<"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<",
+    "fe": ">",
+    "ge": ">"
+   },
+   {
+    ".": ">",
+    "a": ">",
+    "b": "<",
+    "fe": ">",
+    "ge": "<"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<",
+    "fe": "<"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "fe": ">",
+    "ge": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "fe": ">",
+    "ge": "<"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "fe": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 15,
+   "links": 25,
+   "hash": "c0f6bfea"
+  },
+  "treeHash": "11ee35e7"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b c , ,",
+  "note": "三元或",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "c"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": "<",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": "<",
+    "c": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 9,
+   "links": 10,
+   "hash": "fc0b8abd"
+  },
+  "treeHash": "95f5f66b"
+ },
+ {
+  "group": "legacy",
+  "expr": "a a .",
+  "note": "幂等：a∧a 应化简为 a",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "fc9b3231"
+  },
+  "treeHash": "361f0848"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b . a c . ,",
+  "note": "分配律",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "c"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "a": ">",
+    "b": "<",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<",
+    "c": "<"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 9,
+   "links": 10,
+   "hash": "a3d25200"
+  },
+  "treeHash": "66d67408"
+ },
+ {
+  "group": "legacy",
+  "expr": "ab cd .",
+  "note": "多字符变量名",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "ab",
+   "cd"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "ab": ">",
+    "cd": ">"
+   },
+   {
+    ".": "<",
+    "ab": ">",
+    "cd": "<"
+   },
+   {
+    ".": "<",
+    "ab": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "f0cadbfb"
+  },
+  "treeHash": "43c4530"
+ },
+ {
+  "group": "legacy",
+  "expr": "a1 b2 ,",
+  "note": "带数字的变量名",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a1",
+   "b2"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a1": ">"
+   },
+   {
+    ".": ">",
+    "a1": "<",
+    "b2": ">"
+   },
+   {
+    ".": "<",
+    "a1": "<",
+    "b2": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "7287306c"
+  },
+  "treeHash": "5d907d2d"
+ },
+ {
+  "group": "legacy",
+  "expr": "1 a .",
+  "note": "常量参与运算",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "fc9b3231"
+  },
+  "treeHash": "361e3c18"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b > a b > =",
+  "note": "恒真式 -> 常量 1",
+  "expect": "ok",
+  "quant": [],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "3454aae0"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b , a b , =",
+  "note": "恒真式 -> 常量 1",
+  "expect": "ok",
+  "quant": [],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "d36fee0"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b c . .",
+  "note": "三元与",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "c"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": ">",
+    "c": "<"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 9,
+   "links": 10,
+   "hash": "512e1323"
+  },
+  "treeHash": "a3ff07a9"
+ },
+ {
+  "group": "legacy",
+  "expr": "a < b < .",
+  "note": "双重否定",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": "<",
+    "a": ">"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "d76bea6"
+  },
+  "treeHash": "a863cdb7"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b > b a > .",
+  "note": "等价展开",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 8,
+   "links": 10,
+   "hash": "444f7d0f"
+  },
+  "treeHash": "421624a8"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b = c d = .",
+  "note": "4 变量等价组合",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "c",
+   "d"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">",
+    "c": ">",
+    "d": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": ">",
+    "c": ">",
+    "d": "<"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": ">",
+    "c": "<",
+    "d": ">"
+   },
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">",
+    "c": "<",
+    "d": "<"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": "<",
+    "c": ">",
+    "d": ">"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": "<",
+    "c": ">",
+    "d": "<"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "b": "<",
+    "c": "<",
+    "d": ">"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "b": "<",
+    "c": "<",
+    "d": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 16,
+   "links": 28,
+   "hash": "bd4ecee"
+  },
+  "treeHash": "ab0b77fe"
+ },
+ {
+  "group": "legacy",
+  "expr": "x y . z ,",
+  "note": "三变量混合",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "x",
+   "y",
+   "z"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "x": ">",
+    "y": ">"
+   },
+   {
+    ".": ">",
+    "x": ">",
+    "y": "<",
+    "z": ">"
+   },
+   {
+    ".": "<",
+    "x": ">",
+    "y": "<",
+    "z": "<"
+   },
+   {
+    ".": ">",
+    "x": "<",
+    "z": ">"
+   },
+   {
+    ".": "<",
+    "x": "<",
+    "z": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 10,
+   "links": 13,
+   "hash": "2c0e3356"
+  },
+  "treeHash": "ec4118ef"
+ },
+ {
+  "group": "legacy",
+  "expr": "a b c d . . .",
+  "note": "四元与",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "c",
+   "d"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">",
+    "c": ">",
+    "d": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": ">",
+    "c": ">",
+    "d": "<"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": ">",
+    "c": "<"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 11,
+   "links": 13,
+   "hash": "eac238c8"
+  },
+  "treeHash": "699830aa"
+ },
+ {
+  "group": "legacy",
+  "expr": "p q . r > s =",
+  "note": "四变量混合",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "p",
+   "q",
+   "r",
+   "s"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "p": ">",
+    "q": ">",
+    "r": ">",
+    "s": ">"
+   },
+   {
+    ".": "<",
+    "p": ">",
+    "q": ">",
+    "r": ">",
+    "s": "<"
+   },
+   {
+    ".": "<",
+    "p": ">",
+    "q": ">",
+    "r": "<",
+    "s": ">"
+   },
+   {
+    ".": ">",
+    "p": ">",
+    "q": ">",
+    "r": "<",
+    "s": "<"
+   },
+   {
+    ".": ">",
+    "p": ">",
+    "q": "<",
+    "s": ">"
+   },
+   {
+    ".": "<",
+    "p": ">",
+    "q": "<",
+    "s": "<"
+   },
+   {
+    ".": ">",
+    "p": "<",
+    "s": ">"
+   },
+   {
+    ".": "<",
+    "p": "<",
+    "s": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 14,
+   "links": 22,
+   "hash": "384d49d4"
+  },
+  "treeHash": "313aaad1"
+ },
+ {
+  "group": "fixed",
+  "expr": "a",
+  "note": "单变量（改造前被当作错误信息）",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "fc9b3231"
+  },
+  "treeHash": "b87502a"
+ },
+ {
+  "group": "fixed",
+  "expr": "a ",
+  "note": "单变量带尾空格",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "fc9b3231"
+  },
+  "treeHash": "b87502a"
+ },
+ {
+  "group": "fixed",
+  "expr": "1",
+  "note": "常量 1（改造前被当作错误信息）",
+  "expect": "ok",
+  "quant": [],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "b8749fa"
+ },
+ {
+  "group": "fixed",
+  "expr": "0",
+  "note": "常量 0（改造前被当作错误信息）",
+  "expect": "ok",
+  "quant": [],
+  "order": [],
+  "value": [
+   {
+    ".": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "a087efa7"
+  },
+  "treeHash": "b8749d9"
+ },
+ {
+  "group": "fixed",
+  "expr": "a b.",
+  "note": "操作符紧邻前一个 token",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "cf24c126"
+  },
+  "treeHash": "671265a9"
+ },
+ {
+  "group": "fixed",
+  "expr": "a<",
+  "note": "一元操作符紧邻",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a"
+  ],
+  "value": [
+   {
+    ".": "<",
+    "a": ">"
+   },
+   {
+    ".": ">",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "403003f1"
+  },
+  "treeHash": "57fd8a31"
+ },
+ {
+  "group": "quant",
+  "expr": "a b . a ?",
+  "note": "∃a.(a∧b) 化简为 b",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   }
+  ],
+  "order": [
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "a04837d4"
+  },
+  "treeHash": "be4efc26"
+ },
+ {
+  "group": "quant",
+  "expr": "a b , a !",
+  "note": "∀a.(a∨b) 化简为 b",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "a04837d4"
+  },
+  "treeHash": "96cd1f07"
+ },
+ {
+  "group": "quant",
+  "expr": "a b , a ?",
+  "note": "∃a.(a∨b) 恒真",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "a4061208"
+ },
+ {
+  "group": "quant",
+  "expr": "a b . a !",
+  "note": "∀a.(a∧b) 恒假",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "a087efa7"
+  },
+  "treeHash": "e12a3a25"
+ },
+ {
+  "group": "quant",
+  "expr": "a b > a ?",
+  "note": "∃a.(a→b) 恒真",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "72a85a08"
+ },
+ {
+  "group": "quant",
+  "expr": "a b > a !",
+  "note": "∀a.(a→b) 化简为 b",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "a04837d4"
+  },
+  "treeHash": "b74b6707"
+ },
+ {
+  "group": "quant",
+  "expr": "a b = a ?",
+  "note": "∃a.(a↔b) 恒真",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "3bc64b38"
+ },
+ {
+  "group": "quant",
+  "expr": "a b = a !",
+  "note": "∀a.(a↔b) 恒假",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "a087efa7"
+  },
+  "treeHash": "24e26eb7"
+ },
+ {
+  "group": "quant",
+  "expr": "a < a ?",
+  "note": "∃a.¬a 恒真",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "44a93336"
+ },
+ {
+  "group": "quant",
+  "expr": "a < a !",
+  "note": "∀a.¬a 恒假",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "a087efa7"
+  },
+  "treeHash": "bf6a9ab5"
+ },
+ {
+  "group": "quant",
+  "expr": "a b . z ?",
+  "note": "绑定未出现变量：恒等，不记入前缀",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<"
+   },
+   {
+    ".": "<",
+    "a": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "cf24c126"
+  },
+  "treeHash": "d6535ae7"
+ },
+ {
+  "group": "quant",
+  "expr": "a b , c . a ?",
+  "note": "∃a.((a∨b)∧c)",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   }
+  ],
+  "order": [
+   "b",
+   "c"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "b": ">",
+    "c": "<"
+   },
+   {
+    ".": ">",
+    "b": "<",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "b": "<",
+    "c": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 8,
+   "links": 10,
+   "hash": "1afe3156"
+  },
+  "treeHash": "e12ff828"
+ },
+ {
+  "group": "quant",
+  "expr": "a b . c > a !",
+  "note": "∀a.((a∧b)→c)",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [
+   "b",
+   "c"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "b": ">",
+    "c": "<"
+   },
+   {
+    ".": ">",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "16ef2069"
+  },
+  "treeHash": "ba3fa8e7"
+ },
+ {
+  "group": "quant",
+  "expr": "a b . a ? c ,",
+  "note": "∃a(a∧b) ∨ c -> b∨c",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   }
+  ],
+  "order": [
+   "b",
+   "c"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "b": "<",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "b": "<",
+    "c": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "b3f9b89"
+  },
+  "treeHash": "6438c287"
+ },
+ {
+  "group": "quant",
+  "expr": "a b , a ! c .",
+  "note": "∀a(a∨b) ∧ c -> b∧c",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [
+   "b",
+   "c"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">",
+    "c": ">"
+   },
+   {
+    ".": "<",
+    "b": ">",
+    "c": "<"
+   },
+   {
+    ".": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 7,
+   "links": 7,
+   "hash": "487535cc"
+  },
+  "treeHash": "fe747707"
+ },
+ {
+  "group": "quant",
+  "expr": "a b . a ? b !",
+  "note": "嵌套：∀b∃a(a∧b) 恒假",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   },
+   {
+    "var": "b",
+    "type": "forall"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "a087efa7"
+  },
+  "treeHash": "821fed9a"
+ },
+ {
+  "group": "quant",
+  "expr": "a b , a ? b !",
+  "note": "嵌套：∀b∃a(a∨b) 恒真",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "exists"
+   },
+   {
+    "var": "b",
+    "type": "forall"
+   }
+  ],
+  "order": [],
+  "value": [
+   {
+    ".": ">"
+   }
+  ],
+  "viewSig": {
+   "nodes": 3,
+   "links": 1,
+   "hash": "9f7299e4"
+  },
+  "treeHash": "966f531e"
+ },
+ {
+  "group": "quant",
+  "expr": "a < b , a !",
+  "note": "∀a.(¬a∨b) 化简为 b",
+  "expect": "ok",
+  "quant": [
+   {
+    "var": "a",
+    "type": "forall"
+   }
+  ],
+  "order": [
+   "b"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "b": ">"
+   },
+   {
+    ".": "<",
+    "b": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 5,
+   "links": 4,
+   "hash": "a04837d4"
+  },
+  "treeHash": "787f0cd5"
+ },
+ {
+  "group": "quant",
+  "expr": "a b . x ? x ,",
+  "note": "先消去 x 再引入自由 x",
+  "expect": "ok",
+  "quant": [],
+  "order": [
+   "a",
+   "b",
+   "x"
+  ],
+  "value": [
+   {
+    ".": ">",
+    "a": ">",
+    "b": ">"
+   },
+   {
+    ".": ">",
+    "a": ">",
+    "b": "<",
+    "x": ">"
+   },
+   {
+    ".": "<",
+    "a": ">",
+    "b": "<",
+    "x": "<"
+   },
+   {
+    ".": ">",
+    "a": "<",
+    "x": ">"
+   },
+   {
+    ".": "<",
+    "a": "<",
+    "x": "<"
+   }
+  ],
+  "viewSig": {
+   "nodes": 10,
+   "links": 13,
+   "hash": "d5b0fd44"
+  },
+  "treeHash": "abc209dd"
+ },
+ {
+  "group": "error",
+  "expr": "",
+  "note": "空串",
+  "expect": "error",
+  "code": "E_EMPTY"
+ },
+ {
+  "group": "error",
+  "expr": " ",
+  "note": "单个空格（改造前会崩溃）",
+  "expect": "error",
+  "code": "E_EMPTY"
+ },
+ {
+  "group": "error",
+  "expr": "   ",
+  "note": "多个空格（改造前会崩溃）",
+  "expect": "error",
+  "code": "E_EMPTY"
+ },
+ {
+  "group": "error",
+  "expr": "\t",
+  "note": "制表符（改造前会崩溃）",
+  "expect": "error",
+  "code": "E_EMPTY"
+ },
+ {
+  "group": "error",
+  "expr": "\n",
+  "note": "换行（改造前会崩溃）",
+  "expect": "error",
+  "code": "E_EMPTY"
+ },
+ {
+  "group": "error",
+  "expr": "a b",
+  "note": "多余操作数（改造前静默丢弃 a）",
+  "expect": "error",
+  "code": "E_ARITY_HIGH"
+ },
+ {
+  "group": "error",
+  "expr": "a b ",
+  "note": "多余操作数带尾空格",
+  "expect": "error",
+  "code": "E_ARITY_HIGH"
+ },
+ {
+  "group": "error",
+  "expr": "a .",
+  "note": "操作数不足",
+  "expect": "error",
+  "code": "E_ARITY_LOW"
+ },
+ {
+  "group": "error",
+  "expr": ".",
+  "note": "只有操作符",
+  "expect": "error",
+  "code": "E_ARITY_LOW"
+ },
+ {
+  "group": "error",
+  "expr": "a b . .",
+  "note": "操作数不足",
+  "expect": "error",
+  "code": "E_ARITY_LOW"
+ },
+ {
+  "group": "error",
+  "expr": "a b . a b . ?",
+  "note": "量词绑定目标不是变量名",
+  "expect": "error",
+  "code": "E_QUANT_TARGET"
+ },
+ {
+  "group": "error",
+  "expr": "1 0 ?",
+  "note": "量词绑定目标是常量",
+  "expect": "error",
+  "code": "E_QUANT_TARGET"
+ },
+ {
+  "group": "error",
+  "expr": "a b c d e f g h i . . . . . . . .",
+  "note": "超过 8 个变量上限",
+  "expect": "error",
+  "code": "E_TOO_MANY_VARS"
+ }
+]

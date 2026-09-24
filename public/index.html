@@ -1,156 +1,171 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 
 <head>
-    <meta content="text/html;charset=utf-8" http-equiv="content-type" />
+    <meta charset="utf-8" />
     <meta content="IE=edge" http-equiv="X-UA-Compatible" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>逻辑表达式图形化 · logicsim</title>
+    <meta name="description"
+        content="把逆波兰记法的命题逻辑表达式编译成选择器（MUX）电路图，支持与、或、非、推出、等价五种联结词与全称/存在量词，图形与 JSON 双向转换。" />
+    <link rel="icon" href="favicon.ico" />
+
     <link rel="stylesheet" type="text/css" href="lib/joint.css" />
-    <link href="lib/select2.min.css" rel="stylesheet" />
-    <link href="lib/w3.css" rel="stylesheet" />
     <link rel="stylesheet" type="text/css" href="style.css" />
 
-
-    <!-- dependencies -->
+    <!-- 依赖全部本地化，无 CDN 引用。JointJS v3.3.1 为 MPL-2.0 核心包 -->
     <script src="lib/jquery.min.js"></script>
     <script src="lib/lodash.min.js"></script>
     <script src="lib/backbone.js"></script>
     <script src="lib/graphlib.min.js"></script>
     <script src="lib/dagre.min.js"></script>
     <script src="lib/joint.js"></script>
-    <script src="lib/select2.min.js"></script>
     <script src="LogicParser.js"></script>
 </head>
 
 <body>
-    <!-- content -->
     <div class="joint-app">
-        <div class="app-header">
-            <div class="mini-map">
+
+        <!-- ================= 顶部：小地图 + 工具区 ================= -->
+        <header class="app-header">
+            <!-- 小地图。其内部 #mini-view 的坐标由 JS 按页面坐标设置，
+                 因此 .app-header 不能加 padding，.mini-map 必须位于 (0,0)。 -->
+            <div class="mini-map" aria-hidden="true">
                 <div id="mini-paper"></div>
                 <div id="mini-view">
                     <div id="mini-resize"></div>
                 </div>
             </div>
+
             <div class="title-container">
-                <div style="width:33%;float:left;overflow:auto;">
-                    <div class="w3-row" style="margin:1px">
-                        <div class="w3-third w3-btn w3-light-green  w3-hover-green"
-                            style="position: relative;overflow: hidden;cursor:pointer">
-                            <img src="assets/icons/save2.svg" width="15" height="15" class="w3-margin-right" />
-                            <span>载入文本</span>
-                            <input type="file" style="position: absolute;
-                            top: 0;
-                            right: 0;
-                            margin: 0;
-                            padding: 0;
-                            font-size: 20px;
-                            cursor: pointer;
-                            opacity: 0;
-                            filter: alpha(opacity=0)" id="fileToLoad" />
+                <div class="io-block">
+                    <label class="block-title" for="ReversePol">逆波兰逻辑表达式</label>
+                    <textarea id="ReversePol" class="input mono" spellcheck="false"
+                        placeholder="例如：a b . fe >"></textarea>
+                    <div class="io-actions">
+                        <button class="btn btn-accent" onclick="app.parseLogic()">解析文本</button>
+                        <div class="samples">
+                            <span class="samples-label">示例</span>
+                            <button class="chip" onclick="app.useSample('a b . fe >')">a b . fe &gt;</button>
+                            <button class="chip" onclick="app.useSample('a b . fe ge > =')">a b . fe ge &gt; =</button>
+                            <button class="chip" onclick="app.useSample('a b . x ?')">a b . x ?</button>
+                            <button class="chip" onclick="app.useSample('a b , a !')">a b , a !</button>
                         </div>
-                        <button class="w3-third w3-btn w3-light-blue  w3-hover-blue" onclick="app.saveTextAsFile()"><img
-                                src="assets/icons/upload.svg" width="15" height="15"
-                                class="w3-margin-right" />保存文本</button>
-                        <input class="w3-third w3-input w3-center" id="inputFileNameToSaveAs" value="默认保存名称"></input>
                     </div>
-
-
-                    <textarea style="width:100%;height:60px" id="ReversePol"></textarea>
-
-                    <button class="w3-block w3-btn w3-yellow  w3-hover-deep-orange w3-round-large"
-                        onclick="app.parseLogic()">解析文本</button>
-
-                </div>
-                <div style="width:65%;float:left">
-                    <table style="width:100%">
-                        <tr>
-                            <td colspan="2">
-                                <textarea id="myModel" style="width:100%;height:100px">
-                            {
-                                nodeArray: [],
-                                linkArray: []
-                            }
-                        </textarea>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <button id="LoadButton" class="w3-block w3-btn w3-light-green w3-hover-green"
-                                    onclick="app.load()"><img src="assets/icons/save2.svg" width="15" height="15"
-                                        class="w3-margin-right" />文本转图</button>
-                            </td>
-                            <td>
-                                <button id="SaveButton" class="w3-block w3-btn w3-light-blue  w3-hover-blue"
-                                    onclick="app.save()"><img src="assets/icons/upload.svg" width="15" height="15"
-                                        class="w3-margin-right" />图转文本</button>
-                            </td>
-                        </tr>
-                    </table>
                 </div>
             </div>
-        </div>
+        </header>
 
+        <!-- ================= 主体：画布 + 拖拽条 + 右侧面板 ================= -->
         <div class="app-body">
-            <div class="left-container">
+            <div class="left-container"></div>
 
-            </div>
             <div class="main-container">
                 <div id="paper-container">
-                    <div id="paper" style="cursor:grab">
-                    </div>
+                    <div id="paper"></div>
                 </div>
+                <!-- 只读量词前缀条，浮在画布左上角；pointer-events:none 保证不拦截画布交互 -->
+                <div id="quant-prefix" class="quant-prefix" aria-live="polite"></div>
             </div>
-            <div id="app-resize">
-                <div style="position:absolute;left:-35px;background-image:url(assets/box-arrow-in-right.svg);background-size:100%;width:30px;height:30px;"
-                    onclick="
-                app.ResizeBlock()
-                ">
 
-                </div>
+            <div id="app-resize" title="拖动可调整右侧面板宽度">
+                <div class="resize-handle" onclick="app.ResizeBlock()"></div>
             </div>
-            <div class="right-container">
-                <div class="w3-row">
-                    <div class="w3-third">
-                        元素名称：
+
+            <aside class="right-container">
+                <section class="panel">
+                    <h2 class="panel-title">模型 JSON</h2>
+                    <div class="panel-row">
+                        <button id="LoadButton" class="btn btn-primary" onclick="app.load()">文本转图</button>
+                        <button id="SaveButton" class="btn btn-primary" onclick="app.save()">图转文本</button>
                     </div>
-                    <input class="w3-twothird" type="text" id="ERName" />
-                </div>
-                <div class="w3-row">
-                    <div class="w3-third">
-                        元素备注：
+                    <textarea id="myModel" class="input mono fill" spellcheck="false">{
+    "nodeArray": [],
+    "linkArray": []
+}</textarea>
+                    <div class="panel-row">
+                        <div class="file-btn">
+                            <img src="assets/icons/save2.svg" width="14" height="14" alt="" />
+                            <span>载入文本</span>
+                            <input type="file" id="fileToLoad" accept=".json,.txt,application/json,text/plain" />
+                        </div>
+                        <button class="btn btn-ghost" onclick="app.saveTextAsFile()">
+                            <img src="assets/icons/upload.svg" width="14" height="14" alt="" />保存文本
+                        </button>
                     </div>
-                    <textarea class="w3-twothird" id="ERMemo">
-                    </textarea>
-                </div>
-                <button id="ERSetName" class="w3-block w3-btn w3-yellow  w3-hover-deep-orange w3-round-large"
-                    onclick="app.ChangeName()">保存修改</button>
-                <div>
-                    在“解析文本”按钮上面的文本框内输入“逆波兰逻辑表达式”。<br/>
-                    “逆波兰逻辑表达式”支持五种逻辑操作符：<br/>
-                    {<br/>
-                    “.”：“a b .”代表“a”和“b”的逻辑与，<br/>
-                    “<”：“a <”代表“a”的逻辑非，<br/>
-                    “,”：“a b ,”代表“a”和“b”的逻辑或，<br/>
-                    “=”：“a b =”代表“a”和“b”的逻辑等价/同或<br/>
-                    “>”：“a b >”代表“a”和“b”的逻辑推出，<br/>
-                      }。<br/>
-                    逆波兰逻辑表达式组合的举例说明：<br/>
-                    {<br/>
-                    “a b . fe >”即代表逻辑表达“a 与 b   推出了   fe”，<br/>
-                    “a b . fe ge > =”即代表逻辑表达“a 与 b  等价于  fe 推出了 ge”<br/>
-                    }。<br/>
-                    之后点击“解析文本”按钮，将“逆波兰逻辑表达式”转换为适合图形表示的 JSON 格式，<br/>
-                    之后再点击“解析文本”按钮旁的“文本转图”，得到最终的正规图形表示。
-                </div>
-            </div>
+                    <input class="input" id="inputFileNameToSaveAs" value="默认保存名称" />
+                </section>
+
+                <section class="panel">
+                    <h2 class="panel-title">元素属性</h2>
+                    <label class="field-label" for="ERName">元素标签（JSON 字符串数组，支持多行）</label>
+                    <input class="input mono" type="text" id="ERName" placeholder='["第一行","第二行"]' />
+                    <label class="field-label" for="ERMemo">元素备注</label>
+                    <textarea id="ERMemo" class="input" rows="3" placeholder="仅记录在节点上，不参与逻辑运算"></textarea>
+                    <button class="btn btn-accent btn-block" onclick="app.ChangeName()">保存修改</button>
+                    <p class="hint">先在画布上点选一个元素，再修改上面的标签与备注。</p>
+                </section>
+
+                <section class="panel">
+                    <h2 class="panel-title">操作符速查</h2>
+                    <p class="panel-note">后缀记法：操作数在前，操作符在后，用空格分隔。</p>
+                    <ul class="ops-list">
+                        <li><code>.</code><span>与 ∧</span></li>
+                        <li><code>,</code><span>或 ∨</span></li>
+                        <li><code>&lt;</code><span>非 ¬</span></li>
+                        <li><code>&gt;</code><span>推出 →</span></li>
+                        <li><code>=</code><span>等价 ↔</span></li>
+                        <li class="is-new"><code>?</code><span>存在量词 ∃</span></li>
+                        <li class="is-new"><code>!</code><span>全称量词 ∀</span></li>
+                    </ul>
+                    <p class="ops-hint">
+                        <b>a b .</b> 表示 a 与 b；<b>a b . fe &gt;</b> 表示「a 与 b 推出 fe」。
+                    </p>
+                    <p class="ops-hint">
+                        量词作用于紧随其后的变量名，并把它从结果里消去：<br />
+                        <b>a b . x ?</b> 即 <b>∃x.(a ∧ b)</b>，化简为 <b>a ∧ b</b>；<br />
+                        <b>a b , a !</b> 即 <b>∀a.(a ∨ b)</b>，化简为 <b>b</b>。
+                    </p>
+                    <p class="ops-hint">
+                        变量名可用字母、数字或汉字；变量名之间用空格分隔；
+                        操作符可与前一个 token 紧邻（<b>a b.</b> 等价于 <b>a b .</b>）。
+                    </p>
+                </section>
+
+                <section class="panel">
+                    <h2 class="panel-title">用法</h2>
+                    <ol class="steps">
+                        <li>在顶部输入逆波兰逻辑表达式，点「解析文本」——画布立即出图，同时「模型 JSON」同步更新。</li>
+                        <li>想手工调整时，直接在「模型 JSON」里改，再点「文本转图」重新渲染。</li>
+                        <li>点「图转文本」把当前画布上的图形导回 JSON；点「保存文本」下载成文件。</li>
+                    </ol>
+                    <h3 class="panel-subtitle">图例</h3>
+                    <ul class="legend">
+                        <li><i class="lg-import"></i>Import · 变量输入</li>
+                        <li><i class="lg-sel"></i>SEL · 选择器（按 SI 端选择 0 / 1 支路）</li>
+                        <li><i class="lg-zero"></i>常量 0</li>
+                        <li><i class="lg-one"></i>常量 1</li>
+                        <li><i class="lg-export"></i>Export · 输出</li>
+                    </ul>
+                    <h3 class="panel-subtitle">画布操作</h3>
+                    <ul class="legend plain">
+                        <li>拖动空白处平移 · 滚轮缩放</li>
+                        <li>悬停节点/连线出现删除按钮</li>
+                        <li>点选节点后在「元素属性」里改名</li>
+                        <li>双击空白处取消高亮</li>
+                        <li>快捷键：<code>Alt+↑ / Alt+↓</code> 缩放，<code>Alt+[ / Alt+]</code> 折叠面板</li>
+                    </ul>
+                </section>
+            </aside>
+
             <div class="bottom-container">
-                <p id="status">Diagram Model loaded from Json Format.</p>
+                <span id="status" class="status-ok">正在载入…</span>
+                <span id="stats" class="stats"></span>
             </div>
         </div>
     </div>
-    <script src="ViewGen.js">
-    </script>
+
+    <script src="ViewGen.js"></script>
 </body>
 
 </html>
