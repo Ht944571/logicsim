@@ -335,6 +335,153 @@ const ERUnhighlight = function (id) {
     }
 };
 
+/* ===========================================================================
+ * 悬停工具：删除按钮与外框
+ * ---------------------------------------------------------------------------
+ * 原实现直接用 JointJS 默认的删除按钮，实测暴露两个问题：
+ *   1. 按钮半径只有 7（直径 14px）—— 只有鼠标可用下限 24px 的 58%，
+ *      瞄不准；而且原位置在元素方框外，鼠标容易滑出去。
+ *   2. 鼠标一离开元素就立刻 removeTools()，于是"没点中滑出去 → 按钮消失 →
+ *      只能重新悬停"，越急越点不中。
+ *
+ * 三处改进：
+ *   · 直径放大到 26px（用 JointJS 的 r 与图标路径一起缩放），加白色描边
+ *   · 位置挪到元素方框【斜上方外侧】，避开输出端口，也不会遮住节点内容
+ *   · 隐藏加 360ms 宽限期（按 cell 各自计时），鼠标短暂离开不会被立刻抹掉
+ *
+ * 另外补了键盘删除作为兜底：选中元素后按 Delete / Backspace 即可删掉，
+ * 永远比瞄准一个小圆更省事。
+ * ========================================================================*/
+var HOVER_TOOL = {
+    radius: 13,        /* 直径 26px，满足鼠标可用的 24px 下限 */
+    hideDelay: 360    /* 宽限期：给鼠标"移过去点"的时间 */
+};
+
+var toolHideTimers = {};   /* cellId -> timer，按元素各自计时，互不干扰 */
+
+function cancelToolHide(id) {
+    if (toolHideTimers[id]) {
+        clearTimeout(toolHideTimers[id]);
+        delete toolHideTimers[id];
+    }
+}
+
+function scheduleToolHide(cellView) {
+    if (!cellView || !cellView.model) { return; }
+    var id = cellView.model.id;
+    cancelToolHide(id);
+    toolHideTimers[id] = setTimeout(function () {
+        delete toolHideTimers[id];
+        try {
+            cellView.removeTools();
+        } catch (e) {
+            /* 元素在这期间已被删除：忽略即可 */
+        }
+    }, HOVER_TOOL.hideDelay);
+}
+
+/* ⚠️ 按钮尺寸必须靠【子类化覆盖 children】来改。
+   实测：给 elementTools.Remove 传 attrs 选项【完全无效】——它的 children 里
+   把 r 写死成 7，attrs 到不了那一层，按钮还是 14px。
+   子类化覆盖 children 才生效（实测 r=13 / 直径 26px）。
+
+   children 里同时把图标路径按比例放大（-3 → -5.5），否则圆变大了叉还是小小的。 */
+var REMOVE_BTN_CHILDREN = [
+    {
+        tagName: "circle",
+        selector: "button",
+        attributes: {
+            r: HOVER_TOOL.radius,
+            fill: "#B23A3A",
+            stroke: "#FFFFFF",
+            "stroke-width": 2.5,
+            cursor: "pointer"
+        }
+    },
+    {
+        tagName: "path",
+        selector: "icon",
+        attributes: {
+            d: "M -5.5 -5.5 5.5 5.5 M -5.5 5.5 5.5 -5.5",
+            fill: "none",
+            stroke: "#FFFFFF",
+            "stroke-width": 2.8,
+            "stroke-linecap": "round",
+            "pointer-events": "none"
+        }
+    }
+];
+
+var BigElementRemove = joint.elementTools.Remove.extend({ children: REMOVE_BTN_CHILDREN });
+var BigLinkRemove = joint.linkTools.Remove.extend({ children: REMOVE_BTN_CHILDREN });
+
+function showElementTools(elementView) {
+    if (!elementView || !elementView.model) { return; }
+    cancelToolHide(elementView.model.id);
+    elementView.removeTools();
+    elementView.addTools(new joint.dia.ToolsView({
+        tools: [
+            new BigElementRemove({
+                useModelGeometry: true,
+                x: "100%",
+                y: "0%",
+                /* 往左上各挪一个半径：按钮落在方框斜上方外侧。
+                   这样不会压住输出端口（端口在中部）也不会遮住节点内容，
+                   同时仍在元素附近，鼠标不用长距离移动。 */
+                offset: { x: -HOVER_TOOL.radius, y: -HOVER_TOOL.radius }
+            }),
+            new joint.elementTools.Boundary({
+                focusOpacity: 0.5,
+                padding: 10,
+                useModelGeometry: true
+            })
+        ]
+    }));
+}
+
+function showLinkTools(linkView) {
+    if (!linkView || !linkView.model) { return; }
+    cancelToolHide(linkView.model.id);
+    linkView.removeTools();
+    linkView.addTools(new joint.dia.ToolsView({
+        tools: [
+            new BigLinkRemove({
+                useModelGeometry: true,
+                /* 连线用方框中点再往上抬，比原来的"方框右上角"更靠近视线落点 */
+                x: "50%",
+                y: "50%",
+                offset: { x: 0, y: -(HOVER_TOOL.radius + 8) }
+            }),
+            new joint.linkTools.Boundary({
+                focusOpacity: 0.5,
+                padding: 3,
+                useModelGeometry: true
+            })
+        ]
+    }));
+}
+
+/* 删除当前选中的元素（键盘快捷键与删除按钮共用） */
+function deleteSelectedCell() {
+    var id = ERKeyNow;
+    if (undefined === id || null === id) { return false; }
+    var cell = graph.getCell(id);
+    if (!cell) { return false; }
+
+    var what = (cell.isLink && cell.isLink()) ? "连线" : "元素";
+    cancelToolHide(id);
+    cell.remove();
+    ERKeyNow = undefined;
+    chosedElement.Nodes.delete(id);
+    chosedElement.Links.delete(id);
+    chosedElement.Routing.delete(id);
+    fillPropsPanel(null);
+    updateCanvasHint();
+    app.save();
+    setStatus("已删除该" + what + "。", "info");
+    return true;
+}
+
 paper.on({
     'cell:pointerup': function (cellView) {
         var contentSize2 = paper.getContentBBox();
@@ -401,61 +548,35 @@ paper.on({
         }) */
     },
     'element:mouseenter': function (elementView) {
-        var model = elementView.model;
-        var bbox = model.getBBox();
-        var ellipseRadius = (1 - Math.cos(g.toRad(45)));
-        var offset = model.attr(['pointers', 'pointerShape']) === 'ellipse'
-            ? { x: -ellipseRadius * bbox.width / 2, y: ellipseRadius * bbox.height / 2 }
-            : { x: -3, y: 3 };
-
-        elementView.addTools(new joint.dia.ToolsView({
-            tools: [
-                new joint.elementTools.Remove({
-                    useModelGeometry: true,
-                    y: '0%',
-                    x: '100%',
-                    offset: offset
-                }),
-                new joint.elementTools.Boundary({
-                    focusOpacity: 0.5,
-                    padding: 10,
-                    useModelGeometry: true
-                })
-            ]
-        }));
+        showElementTools(elementView);
     },
     'link:mouseenter': function (linkView) {
-        linkView.addTools(new joint.dia.ToolsView({
-            tools: [
-                new joint.linkTools.Remove({
-                    useModelGeometry: true,
-                    y: '0%',
-                    x: '100%',
-                    offset: 1.0
-                }),
-                new joint.linkTools.Boundary({
-                    focusOpacity: 0.5,
-                    padding: 3,
-                    useModelGeometry: true
-                })
-            ]
-        }));
+        showLinkTools(linkView);
     },
     'element:pointerclick': function (elementView) {
         ERKeyNow = elementView.model.id;
         chosedElement.Nodes.add(ERKeyNow);
         ERHighlightLink(ERKeyNow);
 
-        var ERName = document.getElementById("ERName");
-        ERName.value = JSON.stringify(elementView.model.attr().label.text.split("\n"));
-        //ERName.style = "width:" + ERName.value.length * 0.5 + "em";
+        /* 统一走 fillPropsPanel：门节点没有 label 属性，
+           原实现直接读 attr().label.text 会抛 TypeError（点门就报错） */
+        fillPropsPanel(elementView.model);
 
-        var ERMemo = document.getElementById("ERMemo");
-        ERMemo.value = elementView.model.attr().name.text;
-
+        /* 刻意【不】自动跳到「属性」页：用户可能正在看真值表或模型，
+           一点节点就被拽走会很烦。改为在状态栏提示去哪儿改 —— 既不打断，
+           也让人知道"这个还能改名"。（「手动添加」走的是 selectCell，
+           那条路径会主动跳到属性页，因为刚建完节点就是要命名。） */
+        var nmAttr = elementView.model.attr() || {};
+        var shown = (nmAttr.name && nmAttr.name.text) ? nmAttr.name.text
+            : (nmAttr.symbol && nmAttr.symbol.text) ? nmAttr.symbol.text
+                : (elementView.model.get("nodeType") || "元素");
+        setStatus("已选中「" + shown + "」。可在「属性」页改标签与名称，按 Delete 删除。", "info");
     },
     'cell:mouseleave': function (cellView) {
-        cellView.removeTools();
+        /* 延迟隐藏，给用户"把鼠标移到删除按钮上"的时间。
+           原实现是立即 removeTools()，鼠标一旦没点中滑出去按钮就消失，
+           越点不中越消失。 */
+        scheduleToolHide(cellView);
     },
     'blank:contextmenu': function (evt, x, y) {
         /* 原实现是用 alert 弹出坐标（调试残留，会打断操作）。
@@ -612,6 +733,20 @@ $("body").on('keydown', function (e) {
     // e.preventDefault();
     // e = e.originalEvent;
     // e.stopPropagation();
+
+    /* Delete / Backspace 删除当前选中元素。
+       小按钮点不中的兜底 —— 选中后按键删除永远比瞄准 26px 的圆更省事。
+       在输入框里打字时不触发。 */
+    if (46 === e.which || 8 === e.which) {
+        var tgt = e.target || {};
+        var tag = String(tgt.tagName || "").toLowerCase();
+        if ("input" === tag || "textarea" === tag || tgt.isContentEditable) { return; }
+        if (undefined === ERKeyNow || null === ERKeyNow || !graph.getCell(ERKeyNow)) { return; }
+        e.preventDefault();
+        deleteSelectedCell();
+        return;
+    }
+
     if (e.altKey) {
         var delta = 0.2;
         if (38 == e.which) {
