@@ -96,6 +96,23 @@ const HARNESS = `(async () => {
   const _ce = console.error;
   console.error = function () { window.__errs.push('console.error: ' + [].join.call(arguments, ' ')); _ce.apply(console, arguments); };
 
+  /* 每次验收都从同一初始状态开始。
+     应用本身会把「记法 + 视图 + 工作区」存进 localStorage，上一次运行留下的
+     视图模式会让下一次的起始状态不同 —— 这是正确且期望的产品行为，
+     但测试必须自己复位，否则用例之间会互相污染。 */
+  try { window.localStorage.removeItem('logicsim.workspace.v1'); } catch (e) { }
+  appState.viewMode = 'selector';
+  appState.inputMode = 'infix';
+  appState.lastRpn = '';
+  appState.lastModel = null;
+  appState.lastGateTree = null;
+  appState.lastExpr = '';
+  applyViewModeUI();
+  applyInputModeUI();
+  graph.clear();
+  updateCanvasHint();
+  await wait(30);
+
   const $ = id => document.getElementById(id);
 
   function state() {

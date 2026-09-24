@@ -1113,14 +1113,14 @@
     {
       "kind": "SVG",
       "threw": null,
-      "size": 83135,
+      "size": 82055,
       "type": "image/svg+xml;charset=utf-8",
       "pass": true
     },
     {
       "kind": "PNG",
       "threw": null,
-      "size": 145251,
+      "size": 154886,
       "type": "image/png",
       "pass": true
     },
@@ -1165,8 +1165,8 @@
     "threw": null,
     "isNarrow": true,
     "viewport": "720x900",
-    "main": "708x370 @6,228",
-    "right": "720x251 @0,611",
+    "main": "708x357 @6,251",
+    "right": "720x241 @0,621",
     "centered": true,
     "stacked": true,
     "minimapHidden": true

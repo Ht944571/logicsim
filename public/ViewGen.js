@@ -1,6 +1,43 @@
 var app = app || {};
 
 /* ===========================================================================
+ * 画布配色（与 style.css 的设计令牌同源，取自参考图实测色）
+ * ---------------------------------------------------------------------------
+ * 画布里的颜色由 JointJS 直接写进 SVG，CSS 变量到不了这里，所以在此集中定义，
+ * 并与 style.css 的 --node-* / --line-* 保持一一对应。
+ * ========================================================================*/
+var CANVAS_PALETTE = {
+    paper: '#FDFBF8',        /* 画布底：暖白 */
+    gridFine: '#F4F0F2',     /* 细格 10px */
+    gridCoarse: '#E7E0E5',   /* 粗格 50px */
+    link: '#8E7F92',         /* 连线：暖紫灰 */
+    portIn: '#4C4C7A',       /* 输入端口：藏青 */
+    portOut: '#5F7A62',      /* 输出端口：苔绿 */
+    ink: '#2A1F2E',          /* 深墨（浅底上的文字） */
+    inkMuted: '#544458',     /* 次级墨（节点下方名称） */
+    cream: '#FDFBF8',        /* 奶白（深底上的文字 / 图标） */
+    /* 选择器视图的节点色 */
+    nodeVar: '#8C3A4E',      /* 变量输入：酒红 */
+    nodeSel: '#EFE2E8',      /* 选择器：浅腮红（数量最多，刻意做浅使其后退） */
+    nodeZero: '#8E7F92',     /* 常量 0：雾紫 */
+    nodeOne: '#5F7A62',      /* 常量 1：苔绿 */
+    nodeOut: '#4C4C7A'       /* 输出：藏青 */
+};
+
+/* 依据底色明度选前景色：深底用奶白，浅底用深墨。
+   原实现把节点文字一律写成白色，底色一改就会出现"白字白底"。 */
+function textOn(fillHex) {
+    var h = String(fillHex || '').replace('#', '');
+    if (6 !== h.length) { return CANVAS_PALETTE.cream; }
+    var r = parseInt(h.slice(0, 2), 16);
+    var g = parseInt(h.slice(2, 4), 16);
+    var b = parseInt(h.slice(4, 6), 16);
+    /* 相对亮度（WCAG） */
+    var lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return (lum > 0.62) ? CANVAS_PALETTE.ink : CANVAS_PALETTE.cream;
+}
+
+/* ===========================================================================
  * 连线工厂与端口校验
  * 这两个必须在 Paper 初始化之前定义好 —— 创建 Paper 时就要引用它们。
  * ========================================================================*/
@@ -8,12 +45,12 @@ var app = app || {};
 /* 连线外观：加箭头表示数据流向（原版是无方向的纯线） */
 app.LINK_ATTRS = {
     line: {
-        stroke: '#7b8794',
+        stroke: CANVAS_PALETTE.link,
         strokeWidth: 1.6,
         targetMarker: {
             type: 'path',
             d: 'M 9 -4 0 0 9 4 z',
-            fill: '#7b8794',
+            fill: CANVAS_PALETTE.link,
             stroke: 'none'
         }
     }
@@ -82,12 +119,12 @@ var paper = new joint.dia.Paper({
     drawGrid: {
         name: 'doubleMesh',
         args: [
-            { color: '#eef2f7', thickness: 1 },
-            { color: '#dbe2ec', thickness: 1, scaleFactor: 5 }
+            { color: CANVAS_PALETTE.gridFine, thickness: 1 },
+            { color: CANVAS_PALETTE.gridCoarse, thickness: 1, scaleFactor: 5 }
         ]
     },
     background: {
-        color: '#ffffff'
+        color: CANVAS_PALETTE.paper
     },
     /* 手动连线：允许从端口拖出连线；拖到空白处丢弃（不留悬空线头） */
     linkPinning: false,
@@ -118,7 +155,7 @@ var miniPaperJ = new joint.dia.Paper({
     width: 800 * miniScale,
     height: 600 * miniScale,
     background: {
-        color: '#f1f3f5'
+        color: CANVAS_PALETTE.paper
     }
 
 });
@@ -606,16 +643,29 @@ function isNarrowLayout() {
     return !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
 }
 
+/* 窄屏专用：把画布尺寸压到与可视区一致，再由 scaleContentToFit 把内容整体缩进视口。
+   ⚠️ 只在窄屏走这条路。宽屏上「画布大于视口」是平移机制的基础，
+      而且缩放记账（newScale / VarPad / setContainerAndMini 三者互相耦合）不该轻动。 */
+function fitCanvasToViewport(w, h) {
+    newScale = 1;
+    paper.setDimensions(Math.max(240, w - 24), Math.max(160, h - 24));
+    if (graph && graph.getCells().length) {
+        paper.scaleContentToFit({ padding: 12 });
+    }
+}
+
 /* 容器尺寸变化后重新把画布居中并同步小地图。
    注意【不重跑】dagre 布局：节点位置已经算好，重跑只会做无用功。
-   这里只做 fitToContent + 容器/小地图同步，成本低且不会改变图形形状。 */
+   这里只做适配 + 容器/小地图同步，成本低且不会改变图形形状。 */
 function relayout() {
     if (!mainContainer || !mainContainer.length) { return; }
     var w = mainContainer.width();
     var h = mainContainer.height();
     if (!w || !h) { return; }
     try {
-        if (graph && graph.getCells().length) {
+        if (isNarrowLayout()) {
+            fitCanvasToViewport(w, h);
+        } else if (graph && graph.getCells().length) {
             newScale = 1;
             paper.fitToContent({ padding: 50, allowNewOrigin: "any" });
         }
@@ -654,31 +704,35 @@ app.makeNode = function (theKey, theLabel, theName, theColor, theImgPath, thePor
     var theHeight = 100;
 
     var nodeAttrs = {
+        /* label 渲染在节点【上方】（画布底上），所以用次级墨色，
+           不能跟随底色 —— 否则浅色画布上会出现白字白底 */
         label: {
             text: theLabel,
-            fontSize: 12,
+            fontSize: 11,
             fontFamily: 'monospace',
-            fill: 'white',
-            fontWeight: 'bold'
+            fill: CANVAS_PALETTE.inkMuted,
+            fontWeight: 'normal'
         },
         body: {
             fill: theColor,
             width: "100%",
             height: "100%",
-            rx: 5,
-            ry: 5,
-            stroke: 'none'
+            rx: 8,
+            ry: 8,
+            stroke: 'rgba(42,31,46,0.14)',
+            strokeWidth: 1
         },
         image: {
             "xlink:href": theImgPath,
-            width: 50,
-            height: 50, x: theWidth / 2 - 25, y: theHeight / 2 - 25
+            width: 48,
+            height: 48, x: theWidth / 2 - 24, y: theHeight / 2 - 24
         },
+        /* name 渲染在节点【内部】下方，所以要按底色明度取反，保证对比度 */
         name: {
             text: theName,
             fontSize: 12,
             fontFamily: 'monospace',
-            fill: 'white',
+            fill: textOn(theColor),
             fontWeight: 'bold'
         }
     };
@@ -788,7 +842,7 @@ app.nodeCreate = function (theNode) {
             theNode.key,
             theNode.type,
             theNode.name,
-            "#FE854F",
+            CANVAS_PALETTE.nodeZero,
             "assets/zero.svg",
             [{ group: "out", id: "OUT", attrs: { portLabel: { text: "OUT" } } },]
         )
@@ -798,7 +852,7 @@ app.nodeCreate = function (theNode) {
             theNode.key,
             theNode.type,
             theNode.name,
-            "#31D0C6",
+            CANVAS_PALETTE.nodeOne,
             "assets/one.svg",
             [{ group: "out", id: "OUT", attrs: { portLabel: { text: "OUT" } } },]
         )
@@ -808,7 +862,7 @@ app.nodeCreate = function (theNode) {
             theNode.key,
             theNode.type,
             theNode.name,
-            "#ff0000",
+            CANVAS_PALETTE.nodeVar,
             "assets/input.svg",
             [{ group: "out", id: "OUT", attrs: { portLabel: { text: "OUT" } } },]
         )
@@ -818,7 +872,7 @@ app.nodeCreate = function (theNode) {
             theNode.key,
             theNode.type,
             theNode.name,
-            "#ff00ff",
+            CANVAS_PALETTE.nodeOut,
             "assets/output.svg",
             [{ group: "in", id: "OUT", attrs: { portLabel: { text: "OUT" } } },]
         )
@@ -828,7 +882,7 @@ app.nodeCreate = function (theNode) {
             theNode.key,
             theNode.type,
             "",
-            "#ffcccc",
+            CANVAS_PALETTE.nodeSel,
             "assets/SEL.svg",
             [{
                 group: "in", id: "SI",
@@ -876,17 +930,22 @@ var GATE_SYMBOL_POS = {
 
 /* 各门的外观配色 */
 var GATE_STYLE = {
-    AND: { fill: "#dbe7fb", stroke: "#2f6fed" },
-    OR: { fill: "#e6f2fb", stroke: "#2f6fed" },
-    NOT: { fill: "#fdf1e0", stroke: "#d98613" },
-    IMPLY: { fill: "#eef3fe", stroke: "#4a6fd0" },
-    IFF: { fill: "#eef3fe", stroke: "#4a6fd0" },
-    FORALL: { fill: "#fdf3e2", stroke: "#ba7517" },
-    EXISTS: { fill: "#e7f7f1", stroke: "#0f6e56" },
-    VAR: { fill: "#eaf9f2", stroke: "#0f6e56" },
-    CONST1: { fill: "#31d0c6", stroke: "#1d9e75" },
-    CONST0: { fill: "#fe854f", stroke: "#d85a30" },
-    OUT: { fill: "#f6ecfd", stroke: "#a259d9" }
+    /* 逻辑门统一走藏青家族：一个门就是一个门，不必用颜色区分运算类型，
+       形状（D 形 / 月牙形 / 三角）已经说清楚了 */
+    AND: { fill: "#EDEDF5", stroke: "#4C4C7A" },
+    OR: { fill: "#EDEDF5", stroke: "#4C4C7A" },
+    IMPLY: { fill: "#EDEDF5", stroke: "#4C4C7A" },
+    IFF: { fill: "#EDEDF5", stroke: "#4C4C7A" },
+    /* 非门是唯一的一元门，挪到雾紫家族以作区别 */
+    NOT: { fill: "#F2EDF2", stroke: "#7A6B7E" },
+    /* 量词盒：酒红家族，和"门"区分开 */
+    FORALL: { fill: "#F6EBEF", stroke: "#7A3A4E" },
+    EXISTS: { fill: "#F6EBEF", stroke: "#7A3A4E" },
+    /* 数据来源与结果：苔绿 / 藏青 */
+    VAR: { fill: "#E4E8D8", stroke: "#5F7A62" },
+    CONST1: { fill: "#5F7A62", stroke: "#4A6349" },
+    CONST0: { fill: "#8E7F92", stroke: "#6B5A6E" },
+    OUT: { fill: "#DCDDEE", stroke: "#3E3E68" }
 };
 
 /* 门节点的端口分组：用绝对坐标摆放，保证落在符号的引线上 */
@@ -895,8 +954,8 @@ function gatePortGroups() {
         in: {
             position: { name: "absolute", args: { x: 0, y: 0 } },
             attrs: {
-                portBody: { magnet: true, fill: "#2f6fed", stroke: "#1d4ed8", strokeWidth: 1 },
-                portLabel: { fill: "#5f5e5a", fontSize: 10, fontWeight: "Normal" }
+                portBody: { magnet: true, fill: CANVAS_PALETTE.portIn, stroke: "#3E3E68", strokeWidth: 1 },
+                portLabel: { fill: CANVAS_PALETTE.inkMuted, fontSize: 10, fontWeight: "Normal" }
             },
             markup: [
                 { tagName: "rect", selector: "portBody", attributes: { height: 8, width: 8, x: -4, y: -4, rx: 2 } },
@@ -906,8 +965,8 @@ function gatePortGroups() {
         out: {
             position: { name: "absolute", args: { x: 0, y: 0 } },
             attrs: {
-                portBody: { magnet: true, fill: "#0f6e56", stroke: "#0b5544", strokeWidth: 1 },
-                portLabel: { fill: "#5f5e5a", fontSize: 10, fontWeight: "Normal" }
+                portBody: { magnet: true, fill: CANVAS_PALETTE.portOut, stroke: "#4A6349", strokeWidth: 1 },
+                portLabel: { fill: CANVAS_PALETTE.inkMuted, fontSize: 10, fontWeight: "Normal" }
             },
             markup: [
                 { tagName: "rect", selector: "portBody", attributes: { height: 8, width: 8, x: -4, y: -4, rx: 2 } },
@@ -957,26 +1016,42 @@ app.makeGateNode = function (theNode) {
     var symPos = GATE_SYMBOL_POS[type] || { x: w / 2, y: h / 2 };
     if ("VAR" === type || isConst || isOut) { symPos = { x: w / 2, y: h / 2 }; }
 
-    /* ---- 造型 ---- */
+    /* ---- 造型 ----
+       ⚠️ 门形不能写进 standard.Path 的 body.d。
+       该形状在设置尺寸时会用自身默认路径（M 0 0 H calc(w) V calc(h) H 0 Z）
+       覆盖掉自定义的 d —— 实测 D 形会静默退化成矩形（模型里 d 是对的，渲染出来是矩形）。
+
+       所以基类统一用 standard.Rectangle，造型交给自定义选择器 `gate`：
+       Rectangle 只认 body / label，不会去动 gate。文字设成不接收指针事件，
+       拖拽与端口连线都靠 gate 形状本身。 */
     var attrs = {};
     var markup = [];
+
     if (geom.path) {
-        markup.push({ tagName: "path", selector: "body" });
-        attrs.body = { d: geom.path, fill: style.fill, stroke: style.stroke, strokeWidth: 1.6, strokeLinejoin: "round" };
+        markup.push({ tagName: "path", selector: "gate" });
+        attrs.gate = {
+            d: geom.path,
+            fill: style.fill,
+            stroke: style.stroke,
+            strokeWidth: 1.6,
+            strokeLinejoin: "round"
+        };
     } else {
-        markup.push({ tagName: "rect", selector: "body" });
-        attrs.body = {
+        markup.push({ tagName: "rect", selector: "gate" });
+        attrs.gate = {
             width: w, height: h,
             rx: geom.capsule ? h / 2 : 6,
             ry: geom.capsule ? h / 2 : 6,
             fill: style.fill, stroke: style.stroke, strokeWidth: 1.4
         };
     }
+
     if (geom.circle) {
         markup.push({ tagName: "circle", selector: "bubble" });
         attrs.bubble = {
             cx: geom.circle.cx, cy: geom.circle.cy, r: geom.circle.r,
-            fill: "#ffffff", stroke: style.stroke, strokeWidth: 1.6
+            fill: "#ffffff", stroke: style.stroke, strokeWidth: 1.6,
+            pointerEvents: "none"
         };
     }
 
@@ -988,7 +1063,8 @@ app.makeGateNode = function (theNode) {
         text: symbolText,
         x: symPos.x, y: symPos.y,
         fontSize: symbolSize,
-        fill: "#1f2430",
+        /* 随底色明度取反：浅底用深墨、深底用奶白 */
+        fill: textOn(style.fill),
         fontFamily: "'TsangerYuYangT03', 'Segoe UI', sans-serif",
         fontWeight: "500"
     };
@@ -998,7 +1074,8 @@ app.makeGateNode = function (theNode) {
             tagName: "text", selector: "name",
             attributes: {
                 "text-anchor": "middle",
-                "dominant-baseline": nameBelow ? "hanging" : "central"
+                "dominant-baseline": nameBelow ? "hanging" : "central",
+                "pointer-events": "none"
             }
         });
         attrs.name = {
@@ -1006,7 +1083,7 @@ app.makeGateNode = function (theNode) {
             x: w / 2,
             y: nameBelow ? (h + 3) : (h / 2),
             fontSize: nameBelow ? 11 : 14,
-            fill: nameBelow ? "#5f5e5a" : "#1f2430",
+            fill: nameBelow ? CANVAS_PALETTE.inkMuted : CANVAS_PALETTE.ink,
             fontFamily: "'TsangerYuYangT03', 'Segoe UI', sans-serif",
             fontWeight: nameBelow ? "400" : "500"
         };
@@ -1023,10 +1100,10 @@ app.makeGateNode = function (theNode) {
         ports.push({ group: "out", id: "OUT", args: { x: geom.out.x, y: geom.out.y } });
     }
 
-    /* 必须用带 type 字符串的具名形状：直接 new joint.dia.Element 基类没有 type，
+    /* 必须用带合法 type 字符串的具名形状：直接 new joint.dia.Element 基类没有 type，
        graph.resetCells 会报 "cell type must be a string"。
-       造型（path / rect）与 markup 下面会被完全覆盖，这里只借一个合法的 type。 */
-    var Shape = geom.path ? joint.shapes.standard.Path : joint.shapes.standard.Rectangle;
+       统一用 Rectangle —— Path 会覆盖自定义 d（见上），Rectangle 不会碰 gate 选择器。 */
+    var Shape = joint.shapes.standard.Rectangle;
 
     return new Shape({
         id: theNode.key,
@@ -1559,25 +1636,14 @@ function renderTruthTable() {
 /* ===========================================================================
  * 画布操作：适应窗口 / 手动添加节点 / 选中元素
  * ========================================================================*/
+/* 「适应窗口」直接复用 relayout：宽屏走 fitToContent、窄屏走视口缩放，
+   两条路都在 relayout 里定义好了，不必重复一遍居中与小地图同步 */
 app.fitView = function () {
     if (!graph.getCells().length) {
         setStatus("画布是空的，没有可适应的内容。", "info");
         return;
     }
-    newScale = 1;
-    paper.fitToContent({ padding: 40, allowNewOrigin: "any" });
-    setContainerAndMini();
-    paperContainer.css({
-        left: Math.round((mainContainer.width() - paperContainer.width()) / 2),
-        top: Math.round((mainContainer.height() - paperContainer.height()) / 2),
-        position: "absolute"
-    });
-    miniView.css({
-        height: miniScale * mainContainer.height(),
-        width: miniScale * mainContainer.width(),
-        left: -1 * miniScale * paperContainer.position().left,
-        top: -1 * miniScale * paperContainer.position().top
-    });
+    relayout();
     setStatus("已适应窗口。", "info");
 };
 

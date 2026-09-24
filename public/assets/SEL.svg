@@ -62,7 +62,7 @@
        x="72.571426"
        y="83.910713" />
     <rect
-       style="fill:#00f3ff;stroke-width:0.690045;stroke-opacity:0.5;fill-opacity:1"
+       style="fill:#D89C9C;stroke-width:0.690045;stroke-opacity:0.5;fill-opacity:1"
        id="rect837-8"
        width="50"
        height="10"
@@ -70,7 +70,7 @@
        y="1"
        transform="scale(-1,1)" />
     <rect
-       style="fill:#000000;stroke-width:0.690044;stroke-opacity:0.5;fill-opacity:1"
+       style="fill:#544458;stroke-width:0.690044;stroke-opacity:0.5;fill-opacity:1"
        id="rect837-8-1"
        width="50"
        height="10"
@@ -78,7 +78,7 @@
        y="31"
        transform="scale(-1,1)" />
     <rect
-       style="fill:#000000;stroke-width:0.690044;stroke-opacity:0.5;fill-opacity:1"
+       style="fill:#544458;stroke-width:0.690044;stroke-opacity:0.5;fill-opacity:1"
        id="rect837-8-1-1"
        width="50"
        height="10"
@@ -86,11 +86,11 @@
        y="61"
        transform="scale(-1,1)" />
     <path
-       style="fill:#00f3ff;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       style="fill:#D89C9C;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        d="M 50,30.999998 V 41 l 50,19.999999 V 71 L 50,30.999998"
        id="path973" />
     <path
-       style="fill:#00f3ff;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       style="fill:#D89C9C;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        d="M 50,60.999999 V 71 L 100,30.999998 V 41 L 50,60.999999"
        id="path975" />
     <path
@@ -98,7 +98,7 @@
        d="M 59.999998,11 C 64.278321,10.891233 89.999999,1 89.999999,1 H 100 L 50,11"
        id="path1015" />
     <path
-       style="fill:#060404;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:1"
+       style="fill:#544458;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:1"
        d="M 50,6 75,1 100,6 75,11 Z"
        id="path1057" />
   </g>
