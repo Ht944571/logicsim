@@ -1,118 +1,129 @@
-# logicsim
+# logicsim — 逻辑表达式图形化
 
+把**逆波兰记法的命题逻辑表达式**编译成一棵由选择器（MUX）构成的电路图，支持与、或、非、推出、等价五种联结词，以及**全称量词 ∀ / 存在量词 ∃**。图形与 JSON 模型可双向转换。
 
-## Getting started
+**在线使用**：https://logicsim-diagram.app.workbuddy.host/
 
-本程序可通过直接 git clone 项目后，点击本目录下的 index.html 打开，
+> 本仓库由 **kuangdash** 的 [logicsim](https://gitlab.com/kuangdash/logicsim) 改造而来，保留其全部原有功能。图形库为 JointJS v3.3.1（MPL-2.0）。原仓库未附许可证，请在再分发前确认授权。
 
-也可以直接访问本项目的 [gitlab pages](https://kuangdash.gitlab.io/logicsim)，
+---
 
-之后在“解析文本”按钮上面的文本框内输入“逆波兰逻辑表达式”。
+## 快速开始
 
-“逆波兰逻辑表达式”支持五种逻辑操作符：
-{
-“.”：“a b .”代表“a”和“b”的逻辑与，
-“,”：“a b ,”代表“a”和“b”的逻辑或，
-“<”：“a <”代表“a”的逻辑非，
-“>”：“a b >”代表“a”和“b”的逻辑推出，
+本项目**没有构建步骤**——纯静态文件，克隆后直接起一个静态服务器即可。
 
-“=”：“a b =”代表“a”和“b”的逻辑等价/同或
-}。
-
-逆波兰逻辑表达式组合的举例说明：
-{
-“a b . fe >”即代表逻辑表达“a 与 b   推出了   fe”，
-
-“a b . fe ge > =”即代表逻辑表达“a 与 b  等价于  fe 推出了 ge”
-}。
-
-之后点击“解析文本”按钮，将“逆波兰逻辑表达式”转换为适合图形表示的 JSON 格式，
-
-之后再点击“解析文本”按钮旁的“文本转图”，得到最终的正规图形表示。
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/kuangdash/logicsim.git
-git branch -M main
-git push -uf origin main
+```bash
+git clone <本仓库地址> && cd logicsim
+python -m http.server 8080 --directory public
+# 打开 http://localhost:8080
 ```
 
-## Integrate with your tools
+也可以直接双击 `public/index.html`（代码中没有任何网络请求，`file://` 协议下同样能跑）。
 
-* [Set up project integrations](https://gitlab.com/kuangdash/logicsim/-/settings/integrations)
+> ⚠️ 站点根目录是 **`public/`**，不是仓库根目录。部署时输出目录要指向 `public`。
 
-## Collaborate with your team
+---
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## 用法
 
-## Test and Deploy
+在顶部输入框里写**后缀记法**的表达式（操作数在前、操作符在后，用空格分隔），点「解析文本」即可出图。
 
-Use the built-in continuous integration in GitLab.
+| 操作符 | 含义 | 写法 | 等价形式 |
+|---|---|---|---|
+| `.` | 与 ∧ | `a b .` | a ∧ b |
+| `,` | 或 ∨ | `a b ,` | a ∨ b |
+| `<` | 非 ¬（一元） | `a <` | ¬a |
+| `>` | 推出 → | `a b >` | a → b |
+| `=` | 等价 ↔ | `a b =` | a ↔ b |
+| `?` | 存在量词 ∃ | `a b . x ?` | ∃x.(a ∧ b) |
+| `!` | 全称量词 ∀ | `a b , a !` | ∀a.(a ∨ b) |
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+**量词语法**：`<表达式> <变量名> ?` / `<表达式> <变量名> !`。量词作用于紧随其后的变量名，并把它从结果里**消去**：
 
-***
+- `a b . x ?` → ∃x.(a ∧ b)，化简为 `a ∧ b`
+- `a b , a !` → ∀a.(a ∨ b)，化简为 `b`
+- `a b . a ? c ,` → ∃a((a ∧ b) ∨ c)，化简为 `b ∨ c`
 
-# Editing this README
+被真正绑定的量词会显示在画布左上角的**量词前缀条**上。若量词绑定的变量并未出现在表达式里，那是恒等变换，不计入前缀。
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+变量名可用字母、数字或汉字，多个变量之间用空格分隔。操作符可与前一个 token 紧邻，`a b.` 与 `a b .` 等价。
 
-## Suggestions for a good README
+### 界面
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+- **画布**：拖动空白处平移，滚轮缩放，悬停节点/连线出现删除按钮，双击空白处取消高亮。快捷键 `Alt+↑/↓` 缩放、`Alt+[/]` 折叠右侧面板。
+- **模型 JSON**：解析结果会同步到这里。手工改完点「文本转图」重新渲染；点「图转文本」把当前画布导回 JSON；「载入文本」「保存文本」用于本地文件读写。
+- **元素属性**：点选画布上的元素后可改标签与备注。
+- **节点图例**：`Import` 变量输入（红）、`SEL` 选择器（粉）、常量 `0`（橙）/ `1`（青）、`Export` 输出（品红）。
 
-## Name
-Choose a self-explaining name for your project.
+### 已知限制
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+- 变量数上限 8，化简后路径数上限 4096；超出会给出中文提示而不是卡死。
+- 化简是**路径枚举式**的，变量越多路径增长越快（最坏 2ⁿ）。这是原实现的算法特性，本次未替换算法。
+- 窄屏（<900px）下图形不会自动缩放到视口，可用滚轮缩小查看。
+- 右侧「元素标签」沿用原语义：它显示在节点上方。改造后节点类型改由独立属性承载，因此改名不再破坏「图转文本」。
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+---
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## 项目结构
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```
+public/                     ← 站点根目录
+  index.html                页面结构
+  style.css                 样式（CSS 变量 + Flexbox + 三档响应式断点）
+  LogicParser.js            逻辑内核：LogicParser / ModelGen / ViewGen（纯逻辑，无 DOM 依赖）
+  ViewGen.js                界面与渲染：JointJS 画布、交互、双向转换
+  latch.json                示例模型（锁存器）
+  lib/                      第三方依赖，全部本地化，无 CDN
+  assets/                   图标与节点图
+tests/                      Node 直接运行的测试，无需浏览器
+docs/                       改造文档
+```
 
-## Usage
+### 三段式数据管线
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```
+输入 RPN ──► LogicParser ──► ModelGen ──► ViewGen ──► JointJS 渲染
+             ite / MUX 树     路径集        图模型
+                          {value,order}  {nodeArray,linkArray}
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- **`LogicParser(expr)`** — 分词 + 单栈求值，构造 MUX / ite 树，返回统一结果对象 `{ ok:true, tree, quant }` 或 `{ ok:false, code, message }`。
+- **`ModelGen(tree)`** — 递归展开 + 交集合并，输出路径集 `{ value, order }`；若所有路径都终结于常量则塌缩为常量 0 / 1。
+- **`ViewGen(pathSet)`** — 选一个在所有路径中都出现的变量作根，递归拆出 `SEL` 选择器节点，输出 `{ nodeArray, linkArray }`。
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+`{value,order}` 与 `{nodeArray,linkArray}` 是层间数据契约。量词信息**不进入节点结构**（它消去了被绑定变量，图上没有对应节点），而是作为模型 JSON 的可选顶层字段 `quantPrefix`。
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+---
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## 测试
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+全部用 Node 直接跑，不需要浏览器：
 
-## License
-For open source projects, say how it is licensed.
+```bash
+node tests/run.js                 # 逻辑层回归：60 条向量（原有能力 22 / 修复项 6 / 量词 19 / 错误处理 13）
+node tests/compare-baseline.js    # 与改造前逐字节比对：23 项既有表达式的输出必须完全一致
+node tests/verify-quantifiers.js  # 量词语义的独立验证：与另一个集合论 AST 求值器做集合等价比对（9793 项）
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+端到端（真实浏览器，需要 Edge 以 `--remote-debugging-port=9333` 启动）：
+
+```bash
+bash tests/export-baseline.sh     # 从 baseline-v0 标签导出改造前代码，供比对用
+# 启动无头 Edge 后：
+node tests/e2e-cdp.js             # 26 项：功能、双向转换、异常输入、响应式堆叠、控制台错误
+E2E_URL=https://<线上地址>/ node tests/e2e-cdp.js   # 同一套验收直接跑在线上站点
+```
+
+`tests/artifacts/` 下是端到端验收的截图与结构化报告。
+
+---
+
+## 改造要点
+
+本次改造在保留全部原有功能的前提下做了三件事：
+
+1. **输入健壮性重构** — 原实现用「返回值是不是字符串」区分「解析结果」与「错误信息」，导致单变量 `a`、常量 `1`/`0` 被误判为错误，纯空白输入还会抛未捕获异常使页面崩溃。改为统一的结果对象。
+2. **全称/存在量词** — 新增后缀一元算子 `?` / `!`，求值走 `∃x φ = φ[x:=0] ∨ φ[x:=1]`、`∀x φ = φ[x:=0] ∧ φ[x:=1]`。选 `?`/`!` 而非字母 `E`/`A`，因为分词器把任何非操作符 token 都当变量名，用字母会永久占用两个变量名。
+3. **现代 UI 与响应式** — Flexbox 重写骨架，引入 CSS 变量，行内样式外移，三档响应式断点，中文错误提示。
+
+详细说明见 [`docs/改造说明.md`](docs/改造说明.md)，业务与数据结构见 [`docs/业务梳理.md`](docs/业务梳理.md)，回滚步骤见 [`docs/回滚方案.md`](docs/回滚方案.md)。

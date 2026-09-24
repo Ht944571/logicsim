@@ -14,7 +14,8 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 9333;
-const TARGET_URL = 'http://127.0.0.1:8080/index.html';
+/* 默认测本地预览；用 E2E_URL 指向线上站点可以做同一套验收 */
+const TARGET_URL = process.env.E2E_URL || 'http://127.0.0.1:8080/index.html';
 const OUTDIR = process.argv[2] || path.join(__dirname, 'artifacts');
 
 class CDP {
