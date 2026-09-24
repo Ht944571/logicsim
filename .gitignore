@@ -1,6 +1,9 @@
 # 测试基线副本（由 tests/export-baseline.sh 从 git 标签导出，不纳入版本控制）
 tests/.baseline/
 
+# wrangler（Cloudflare CLI）的本地缓存，不该进版本库
+.wrangler/
+
 # 端到端验收的临时产物
 tests/artifacts/.warmup.png
 
