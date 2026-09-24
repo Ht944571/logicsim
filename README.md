@@ -2,7 +2,7 @@
 
 把逻辑表达式编译成图形。**中缀/后缀两种写法都能输**，可以看成**选择器（MUX）网络**或**逻辑门电路**，自动列**真值表**，能导出 **SVG/PNG**，也支持在画布上**手动搭图连线**。
 
-**在线使用**：https://logicsim-diagram.app.workbuddy.host/
+**在线使用**：https://logicsim-edn.pages.dev/
 
 > 本仓库由 **kuangdash** 的 [logicsim](https://gitlab.com/kuangdash/logicsim) 改造而来，保留其全部原有功能。图形库为 JointJS v3.3.1（MPL-2.0）。原仓库未附许可证，请在再分发前确认授权。
 
