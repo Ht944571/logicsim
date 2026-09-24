@@ -1,0 +1,46 @@
+# 把 public/ 目录发布到 GitHub Pages
+# ---------------------------------------------------------------------------
+# 站点根目录是 public/（不是仓库根），所以走 artifact 上传方式，
+# 而不是"从分支的 / 或 /docs 发布"（那两种不支持任意子目录）。
+#
+# enablement: true 让工作流自己启用 Pages —— 这样仓库设置里
+# 不需要手工点一次「Source: GitHub Actions」。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 启用并配置 Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: 上传站点（public/ 即站点根目录）
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: 发布
+        id: deployment
+        uses: actions/deploy-pages@v4
