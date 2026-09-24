@@ -295,16 +295,25 @@ const HARNESS = `(async () => {
   app.parseLogic({ force: true });
   await wait(40);
 
+  /* 导出是异步的（要把图标 fetch 回来内联成 data URI，PNG 还要过一遍 canvas），
+     固定 sleep 在线上会因为网络延迟而抓不到 —— 改成轮询等待下载出现。 */
+  async function waitForDownload(timeoutMs) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      if (window.__downloads.length) { return window.__downloads[0]; }
+      await wait(50);
+    }
+    return null;
+  }
+
   let svgThrew = null, pngThrew = null;
   window.__downloads = [];
   try { app.exportSVG(); } catch (e) { svgThrew = e.message; }
-  await wait(500);
-  const svgBlob = window.__downloads[0] || null;
+  const svgBlob = await waitForDownload(8000);
 
   window.__downloads = [];
   try { app.exportPNG(); } catch (e) { pngThrew = e.message; }
-  await wait(1200);
-  const pngBlob = window.__downloads[0] || null;
+  const pngBlob = await waitForDownload(12000);
 
   HTMLAnchorElement.prototype.click = _click;
 
@@ -482,7 +491,11 @@ const HARNESS = `(async () => {
 
     const listRes = await fetch(`http://127.0.0.1:${PORT}/json`);
     const targets = await listRes.json();
-    const page = targets.find(t => t.type === 'page');
+    /* 优先挑一个"普通网页"类型的 target。
+       刚启动的浏览器可能只有一个 edge:// 之类的特殊页，那种 target 会拒绝
+       Emulation.setDeviceMetricsOverride（报 "Target does not support metrics override"）。 */
+    const page = targets.find(t => t.type === 'page' && !/^(edge|chrome|devtools|about):/.test(t.url))
+        || targets.find(t => t.type === 'page');
     if (!page) { throw new Error('未找到可用的浏览器页面 target，请确认 Edge 已用 --remote-debugging-port 启动'); }
 
     const cdp = new CDP(page.webSocketDebuggerUrl);
@@ -490,13 +503,16 @@ const HARNESS = `(async () => {
     await cdp.send('Runtime.enable');
     await cdp.send('Log.enable');
     await cdp.send('Page.enable');
-    await cdp.send('Emulation.setDeviceMetricsOverride', {
-        width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false
-    });
 
     console.log('>> 载入 ' + TARGET_URL);
     await cdp.send('Page.navigate', { url: TARGET_URL });
     await sleep(2600);
+
+    /* 视口必须在导航【之后】设置：导航前 target 可能还是特殊页，会拒绝 metrics override */
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false
+    });
+    await sleep(400);
 
     console.log('>> 执行验收脚本\n');
     const report = await cdp.evalJS(HARNESS);
